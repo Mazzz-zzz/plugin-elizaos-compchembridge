@@ -1,68 +1,100 @@
-# Dependencies
-node_modules/
-py/venv/
-py/.venv/
+node_modules
+/out
 
-# Build outputs
-dist/
-build/
-*.tsbuildinfo
-
-# Test coverage
-coverage/
-.nyc_output/
-py/htmlcov/
-py/.coverage
-py/.pytest_cache/
-
-# Environment variables
 .env
+.env.production
 .env.local
-.env.*.local
+.env_main
+concatenated-output.ts
+embedding-cache.json
+packages/plugin-buttplug/intiface-engine
 
-# IDE files
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
+node-compile-cache
 
-# OS files
+.idea
+.vscode
+.zed
 .DS_Store
-Thumbs.db
 
-# Logs
-*.log
+dist/
+# Allow models directory but ignore model files
+models/*.gguf
+pgLite/
+
+cookies.json
+
+db.sqlite
+searches/
+tweets/
+
+*.gguf
+*.onnx
+*.wav
+*.mp3
+
 logs/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
 
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-py/dist/
-py/build/
-py/*.egg-info/
+test-report.json
+content_cache/
+test_data/
+tokencache/
+tweetcache/
+twitter_cookies.json
+timeline_cache.json
 
-# Temporary files
-*.tmp
-*.temp
-.cache/
+*.sqlite
 
-# Package manager
-package-lock.json
-yarn.lock
-py/poetry.lock
+# Character configurations
+characters/**/secrets.json
+characters/**/*.env
+characters/**/*.key
+characters/**/private/
 
-# Test files
-tests/data/*.log
-tests/data/*.out
+packages/core/src/providers/cache
+packages/core/src/providers/cache/*
+cache/*
+packages/plugin-coinbase/src/plugins/transactions.csv
 
-# Development
+tsup.config.bundled_*.mjs
+
+.turbo
+.cursorrules
+.pnpm-store
+instructions.md
+wallet_data.txt
+
+coverage
 .eslintcache
-*.tgz 
-eliza-starter/
+
+agent/content
+
+eliza.manifest
+eliza.manifest.sgx
+eliza.sig
+
+packages/plugin-nvidia-nim/extra
+packages/plugin-nvidia-nim/old_code
+packages/plugin-nvidia-nim/docs
+
+# Edriziai specific ignores
+characters/edriziai-info/secrets.json
+
+# Bug Hunter logs and checkpoints
+scripts/bug_hunt/logs/
+scripts/bug_hunt/logs/*.log
+scripts/bug_hunt/checkpoints/
+scripts/bug_hunt/checkpoints/*.json
+scripts/bug_hunt/reports/
+scripts/bug_hunt/reports/*.md
+
+lit-config.json
+
+# Configuration to exclude the extra and local_docs directories
+extra
+**/dist/**
+
+ton_nft_metadata/
+ton_nft_metadata/*
+
+ton_nft_images/
+ton_nft_images/*

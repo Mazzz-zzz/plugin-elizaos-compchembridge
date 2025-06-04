@@ -7,6 +7,8 @@
 
 A working Eliza AI agent enhanced with a custom Gaussian Knowledge Graph plugin for computational chemistry analysis. This project demonstrates natural language interaction with quantum chemistry data through automatic file processing and semantic knowledge graphs.
 
+Note: A this plugin only with with eliza version before version v1.0.0. For convenience and ease of running, the plugin has already been installed in the eliza folder. You would run it the same way as running v0.25.9. Once you cd into the eliza folder, run `pnpm install` and then `pnpm start`.
+
 ## 🎯 What It Does
 
 - **Automatic Processing**: Monitors `example_logs/` for Gaussian files and processes them automatically
@@ -19,16 +21,16 @@ A working Eliza AI agent enhanced with a custom Gaussian Knowledge Graph plugin 
 
 ```bash
 # Navigate to the working agent
-cd eliza-starter
+cd eliza
 
 # Install dependencies
-bun install
+pnpm install
 
 # Add your API key to .env
 echo "OPENROUTER_API_KEY=your_key_here" > .env
 
 # Start the agent
-bun start
+pnpm dev
 ```
 
 Then add Gaussian files to `example_logs/` and chat with your agent!
