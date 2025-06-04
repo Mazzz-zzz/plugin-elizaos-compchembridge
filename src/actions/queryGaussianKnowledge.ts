@@ -33,8 +33,8 @@ export const queryGaussianKnowledgeAction: Action = {
   handler: async (
     runtime: IAgentRuntime,
     message: Memory,
-    state: State,
-    options: { [key: string]: unknown } = {},
+    _state: State,
+    _options: { [key: string]: unknown } = {},
     callback?: HandlerCallback,
   ): Promise<boolean> => {
     try {
@@ -44,19 +44,11 @@ export const queryGaussianKnowledgeAction: Action = {
       // Get the knowledge service
       const knowledgeService = runtime.getService("gaussian-knowledge") as unknown as GaussianKnowledgeService | null;
       if (!knowledgeService) {
-        const errorMessage = "❌ Gaussian knowledge service is not available. Please ensure the knowledge graph is initialized.";
-        console.log("📤 Error Response:", errorMessage);
-        
-        // Send error response via callback
-        if (callback) {
-          await callback({
-            text: errorMessage,
-            thought: "The Gaussian knowledge service is not available, so I cannot process this query.",
-            actions: ["QUERY_GAUSSIAN_KNOWLEDGE"],
-          });
-        }
-        
-        return false;
+        await callback?.({
+          text: "❌ Gaussian knowledge service is not available. Please ensure the knowledge graph is initialized.",
+          action: "QUERY_GAUSSIAN_KNOWLEDGE",
+        });
+        return true;
       }
 
       let responseText = "";
@@ -66,10 +58,8 @@ export const queryGaussianKnowledgeAction: Action = {
         query.toLowerCase().includes("stats") ||
         query.toLowerCase().includes("summary")
       ) {
-        console.log("🔧 DEBUG: Getting stats...");
         // Get overall statistics
         const stats = await knowledgeService.getKnowledgeGraphStats();
-        console.log("🔧 DEBUG: Stats received:", JSON.stringify(stats, null, 2));
         
         if (stats.error) {
           responseText = `❌ Error getting knowledge graph stats: ${stats.error}`;
@@ -86,8 +76,6 @@ export const queryGaussianKnowledgeAction: Action = {
 📄 **Files Processed**: ${stats.processedFiles}
 🕒 **Last Updated**: ${new Date(stats.lastModified).toLocaleString()}`;
         }
-        console.log("🔧 DEBUG: Response text length:", responseText.length);
-        console.log("🔧 DEBUG: Response text preview:", responseText.substring(0, 100));
       } else {
         // Query the knowledge graph
         const result = await knowledgeService.queryKnowledgeGraph(query);
@@ -120,44 +108,18 @@ export const queryGaussianKnowledgeAction: Action = {
         }
       }
 
-      console.log("🔧 DEBUG: Response generated:", responseText.substring(0, 100) + "...");
-      console.log("📤 Response:", responseText);
-      console.log("callback?", callback);
-      console.log("message.roomId", message.roomId);
-      console.log("responseText", responseText);
+      await callback?.({
+        text: responseText,
+        action: "REPLY",
+      });
 
-      
-     
-     
-
-      // Send the response via callback
-      if (callback) {
-        await callback({
-          role: "assistant",                     // <- mandatory
-          roomId: message.roomId,                // or conversationId, whichever your client uses
-          content: {
-            markdown: responseText,              // or text:
-            action: "QUERY_GAUSSIAN_KNOWLEDGE",
-          },
-        });
-      }
-
-      return true; // ✅ success
-    } catch (error) {
-      console.error("Error in queryGaussianKnowledgeAction:", error);
-      const errorText = `❌ Error processing your query: ${error instanceof Error ? error.message : "Unknown error"}`;
-      console.log("📤 Error Response:", errorText);
-      
-      // Send error response via callback
-      if (callback) {
-        await callback({
-          text: errorText,
-          thought: "An unexpected error occurred while processing the Gaussian knowledge query.",
-          actions: ["QUERY_GAUSSIAN_KNOWLEDGE"],
-        });
-      }
-      
-      return false; // ❌ failure
+      return true;
+    } catch (err: any) {
+      await callback?.({
+        text: `❌ Error: ${err.message ?? "unknown"}`,
+        action: "REPLY",
+      });
+      return true;
     }
   },
   examples: [
