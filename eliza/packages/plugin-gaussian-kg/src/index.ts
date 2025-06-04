@@ -4,7 +4,9 @@ import { plotKnowledgeGraphAction } from "./actions/plotKnowledgeGraph.js";
 import { analyzeMolecularDataAction } from "./actions/analyzeMolecularData.js";
 import { exportKnowledgeDataAction } from "./actions/exportKnowledgeData.js";
 import { generateComprehensiveReportAction } from "./actions/generateComprehensiveReport.js";
+
 import { GaussianKnowledgeService } from "./services/gaussianKnowledgeService.js";
+import { GaussianParserService } from "./services/gaussianParser.js";
 
 const gaussianKnowledgeGraphPlugin: Plugin = {
     name: "gaussian-kg",
@@ -24,8 +26,12 @@ const gaussianKnowledgeGraphPlugin: Plugin = {
 export async function initializeGaussianKnowledgePlugin(runtime: any) {
     try {
         const service = await GaussianKnowledgeService.start(runtime);
-        // Register the service with the runtime using a direct approach
+        const parserService = await GaussianParserService.start(runtime);
+        
+        // Register services with the runtime
         runtime.services.set("gaussian-knowledge", service);
+        runtime.services.set("gaussian-parser", parserService);
+        
         console.log("✅ Gaussian Knowledge Plugin initialized successfully");
         console.log("🎯 Available actions:");
         console.log("   - Query knowledge graph data");
@@ -33,6 +39,14 @@ export async function initializeGaussianKnowledgePlugin(runtime: any) {
         console.log("   - Analyze molecular data trends");
         console.log("   - Export data in multiple formats");
         console.log("   - Generate comprehensive research reports");
+        console.log("🔧 Services:");
+        console.log("   - Gaussian Knowledge Service (auto file monitoring)");
+        console.log("   - Gaussian Parser Service (standalone parsing)");
+        console.log("🔬 Enhanced capabilities:");
+        console.log("   - Dual parser support (basic + cclib)");
+        console.log("   - Professional matplotlib visualizations");
+        console.log("   - Statistical analysis tools");
+        console.log("   - Data quality assessment");
     } catch (error) {
         console.error("❌ Failed to initialize Gaussian Knowledge Plugin:", error);
     }
@@ -47,5 +61,6 @@ export {
     analyzeMolecularDataAction,
     exportKnowledgeDataAction,
     generateComprehensiveReportAction,
-    GaussianKnowledgeService 
+    GaussianKnowledgeService,
+    GaussianParserService
 }; 

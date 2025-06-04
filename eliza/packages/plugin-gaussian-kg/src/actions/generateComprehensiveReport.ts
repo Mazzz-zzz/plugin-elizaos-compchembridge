@@ -67,54 +67,54 @@ export const generateComprehensiveReportAction: Action = {
             if (reportResult.error) {
                 responseText = `❌ Error generating report: ${reportResult.error}`;
             } else {
-                responseText = `📊 **Comprehensive Research Report Generated**
+                responseText = `📊 Comprehensive Research Report Generated
 
-📈 **Report Overview**:
-- 📄 **Report Type**: ${reportResult.reportType}
-- 🧪 **Molecules Analyzed**: ${reportResult.moleculeCount}
-- 📊 **Data Points**: ${reportResult.dataPointCount}
-- 🔬 **Analysis Methods**: ${reportResult.analysisMethods.join(', ')}
-- 🎨 **Visualizations**: ${reportResult.visualizationCount}
+📈 Report Overview:
+- 📄 Report Type: ${reportResult.reportType}
+- 🧪 Molecules Analyzed: ${reportResult.moleculeCount}
+- 📊 Data Points: ${reportResult.dataPointCount}
+- 🔬 Analysis Methods: ${reportResult.analysisMethods.join(', ')}
+- 🎨 Visualizations: ${reportResult.visualizationCount}
 
-📝 **Report Sections**:
-- 🎯 **Executive Summary**: Key findings and insights
-- 📊 **Statistical Analysis**: Comprehensive data overview
-- 🧬 **Molecular Properties**: Detailed molecular characterization
-- ⚡ **Energy Analysis**: SCF energies and electronic properties
-- 🎵 **Vibrational Analysis**: Frequency data and IR/Raman spectra
-- 🌡️ **Thermochemical Properties**: ${reportResult.enhanced ? 'Enhanced with cclib data' : 'Basic analysis'}
-- 🌈 **Spectroscopic Analysis**: ${reportResult.enhanced ? 'Electronic transitions and intensities' : 'Limited data'}
-- 💡 **Research Recommendations**: AI-generated insights
+📝 Report Sections:
+- 🎯 Executive Summary: Key findings and insights
+- 📊 Statistical Analysis: Comprehensive data overview
+- 🧬 Molecular Properties: Detailed molecular characterization
+- ⚡ Energy Analysis: SCF energies and electronic properties
+- 🎵 Vibrational Analysis: Frequency data and IR/Raman spectra
+- 🌡️ Thermochemical Properties: ${reportResult.enhanced ? 'Enhanced with cclib data' : 'Basic analysis'}
+- 🌈 Spectroscopic Analysis: ${reportResult.enhanced ? 'Electronic transitions and intensities' : 'Limited data'}
+- 💡 Research Recommendations: AI-generated insights
 
-📁 **Generated Files**:
-- 🖼️  **Interactive HTML Report**: \`${reportResult.htmlReport}\`
-- 📄 **Markdown Report**: \`${reportResult.markdownReport}\`
-- 📋 **Executive Summary**: \`${reportResult.executiveSummary}\``;
+📁 Generated Files:
+- 🖼️  Interactive HTML Report: \`${reportResult.htmlReport}\`
+- 📄 Markdown Report: \`${reportResult.markdownReport}\`
+- 📋 Executive Summary: \`${reportResult.executiveSummary}\``;
 
                 if (reportResult.enhanced) {
-                    responseText += `\n\n🔬 **Enhanced cclib Features**:
-- 📈 **Advanced Statistics**: 60+ molecular properties analyzed
-- 🌡️ **Thermochemical Data**: Enthalpy, entropy, free energy, ZPVE
-- 🌟 **Spectroscopic Properties**: Electronic transitions, oscillator strengths
-- 🧮 **Basis Set Analysis**: Molecular orbitals and basis functions
-- 🎯 **Optimization Status**: Convergence tracking and validation`;
+                    responseText += `\n\n🔬 Enhanced cclib Features:
+- 📈 Advanced Statistics: 60+ molecular properties analyzed
+- 🌡️ Thermochemical Data: Enthalpy, entropy, free energy, ZPVE
+- 🌟 Spectroscopic Properties: Electronic transitions, oscillator strengths
+- 🧮 Basis Set Analysis: Molecular orbitals and basis functions
+- 🎯 Optimization Status: Convergence tracking and validation`;
                 }
 
                 if (reportResult.keyFindings && reportResult.keyFindings.length > 0) {
-                    responseText += `\n\n🔍 **Key Findings**:`;
+                    responseText += `\n\n🔍 Key Findings:`;
                     reportResult.keyFindings.forEach((finding: string, index: number) => {
                         responseText += `\n${index + 1}. ${finding}`;
                     });
                 }
 
                 if (reportResult.chartImages && reportResult.chartImages.length > 0) {
-                    responseText += `\n\n📊 **Generated Chart Files** (copied to client/public):`;
+                    responseText += `\n\n📊 Generated Chart Files (copied to client/public):`;
                     reportResult.chartImages.forEach((chart: any, index: number) => {
-                        responseText += `\n🖼️  **${chart.title}**: Available at ${chart.publicUrl}`;
+                        responseText += `\n🖼️  ${chart.title}: Available at ${chart.publicUrl}`;
                     });
                 }
 
-                responseText += `\n\n💡 **Usage**: Open the HTML report for interactive features and detailed analysis`;
+                responseText += `\n\n💡 Usage: Open the HTML report for interactive features and detailed analysis`;
             }
 
             // Create memory with attachments pointing to public folder URLs
@@ -762,9 +762,9 @@ async function generateDetailedMarkdownReport(analysisData: any, stats: any, tim
     
     const markdownContent = `# Comprehensive Gaussian Analysis Report
 
-**Generated:** ${new Date().toLocaleString()}  
-**Parser:** ${stats.parser || 'basic'} ${stats.enhanced ? '(Enhanced with cclib)' : ''}  
-**Report ID:** ${timestamp}
+Generated: ${new Date().toLocaleString()}  
+Parser: ${stats.parser || 'basic'} ${stats.enhanced ? '(Enhanced with cclib)' : ''}  
+Report ID: ${timestamp}
 
 ## Executive Summary
 
@@ -786,26 +786,26 @@ ${stats.enhanced ? `
 ## Enhanced cclib Properties
 
 ### Thermochemical Data
-- **Enthalpy calculations:** ${stats.thermochemistry?.enthalpy || 0}
-- **Entropy calculations:** ${stats.thermochemistry?.entropy || 0}
-- **Free energy data:** ${stats.thermochemistry?.freeEnergy || 0}
-- **ZPVE corrections:** ${stats.thermochemistry?.zpve || 0}
+- Enthalpy calculations: ${stats.thermochemistry?.enthalpy || 0}
+- Entropy calculations: ${stats.thermochemistry?.entropy || 0}
+- Free energy data: ${stats.thermochemistry?.freeEnergy || 0}
+- ZPVE corrections: ${stats.thermochemistry?.zpve || 0}
 
 ### Spectroscopic Properties
-- **Electronic transitions:** ${stats.spectroscopy?.electronicTransitions || 0}
-- **IR intensities:** ${stats.spectroscopy?.irIntensities || 0}
-- **Raman activities:** ${stats.spectroscopy?.ramanActivities || 0}
-- **Oscillator strengths:** ${stats.spectroscopy?.oscillatorStrengths || 0}
+- Electronic transitions: ${stats.spectroscopy?.electronicTransitions || 0}
+- IR intensities: ${stats.spectroscopy?.irIntensities || 0}
+- Raman activities: ${stats.spectroscopy?.ramanActivities || 0}
+- Oscillator strengths: ${stats.spectroscopy?.oscillatorStrengths || 0}
 
 ### Basis Set Information
-- **Molecular orbitals:** ${stats.basisSet?.molecularOrbitals || 0}
-- **Basis functions:** ${stats.basisSet?.basisFunctions || 0}
-- **Atomic orbitals:** ${stats.basisSet?.atomicOrbitals || 0}
+- Molecular orbitals: ${stats.basisSet?.molecularOrbitals || 0}
+- Basis functions: ${stats.basisSet?.basisFunctions || 0}
+- Atomic orbitals: ${stats.basisSet?.atomicOrbitals || 0}
 
 ### Optimization Status
-- **Converged calculations:** ${stats.optimization?.convergedCalculations || 0}
-- **Failed optimizations:** ${stats.optimization?.failedOptimizations || 0}
-- **Success rate:** ${stats.optimization?.convergedCalculations && stats.optimization?.failedOptimizations ? 
+- Converged calculations: ${stats.optimization?.convergedCalculations || 0}
+- Failed optimizations: ${stats.optimization?.failedOptimizations || 0}
+- Success rate: ${stats.optimization?.convergedCalculations && stats.optimization?.failedOptimizations ? 
     ((stats.optimization.convergedCalculations / (stats.optimization.convergedCalculations + stats.optimization.failedOptimizations)) * 100).toFixed(1) : 'N/A'}%
 
 ` : ''}
@@ -813,26 +813,26 @@ ${stats.enhanced ? `
 ## Energy Analysis
 
 ${analysisData.energyData.length > 0 ? `
-- **Energy range:** ${Math.min(...analysisData.energyData).toFixed(6)} to ${Math.max(...analysisData.energyData).toFixed(6)} Hartree
-- **Average energy:** ${(analysisData.energyData.reduce((a: number, b: number) => a + b, 0) / analysisData.energyData.length).toFixed(6)} Hartree
-- **Energy span:** ${(Math.max(...analysisData.energyData) - Math.min(...analysisData.energyData)).toFixed(6)} Hartree
+- Energy range: ${Math.min(...analysisData.energyData).toFixed(6)} to ${Math.max(...analysisData.energyData).toFixed(6)} Hartree
+- Average energy: ${(analysisData.energyData.reduce((a: number, b: number) => a + b, 0) / analysisData.energyData.length).toFixed(6)} Hartree
+- Energy span: ${(Math.max(...analysisData.energyData) - Math.min(...analysisData.energyData)).toFixed(6)} Hartree
 ` : 'No energy data available for analysis.'}
 
 ## Electronic Properties
 
 ${analysisData.homoLumoData.length > 0 ? `
-- **HOMO-LUMO gap range:** ${Math.min(...analysisData.homoLumoData.map((d: any) => d.gap)).toFixed(3)} to ${Math.max(...analysisData.homoLumoData.map((d: any) => d.gap)).toFixed(3)} eV
-- **Average HOMO-LUMO gap:** ${(analysisData.homoLumoData.reduce((sum: number, d: any) => sum + d.gap, 0) / analysisData.homoLumoData.length).toFixed(3)} eV
-- **Electronic character:** ${(analysisData.homoLumoData.reduce((sum: number, d: any) => sum + d.gap, 0) / analysisData.homoLumoData.length) > 4 ? 'Stable (large gap)' : 'Potentially reactive (small gap)'}
+- HOMO-LUMO gap range: ${Math.min(...analysisData.homoLumoData.map((d: any) => d.gap)).toFixed(3)} to ${Math.max(...analysisData.homoLumoData.map((d: any) => d.gap)).toFixed(3)} eV
+- Average HOMO-LUMO gap: ${(analysisData.homoLumoData.reduce((sum: number, d: any) => sum + d.gap, 0) / analysisData.homoLumoData.length).toFixed(3)} eV
+- Electronic character: ${(analysisData.homoLumoData.reduce((sum: number, d: any) => sum + d.gap, 0) / analysisData.homoLumoData.length) > 4 ? 'Stable (large gap)' : 'Potentially reactive (small gap)'}
 ` : 'No HOMO-LUMO data available for analysis.'}
 
 ## Vibrational Analysis
 
 ${analysisData.frequencyData.length > 0 ? `
-- **Frequency range:** ${Math.min(...analysisData.frequencyData).toFixed(1)} to ${Math.max(...analysisData.frequencyData).toFixed(1)} cm⁻¹
-- **Total frequencies:** ${analysisData.frequencyData.length}
-- **Imaginary frequencies:** ${analysisData.frequencyData.filter((f: number) => f < 0).length} (potential transition states)
-- **Real frequencies:** ${analysisData.frequencyData.filter((f: number) => f >= 0).length}
+- Frequency range: ${Math.min(...analysisData.frequencyData).toFixed(1)} to ${Math.max(...analysisData.frequencyData).toFixed(1)} cm⁻¹
+- Total frequencies: ${analysisData.frequencyData.length}
+- Imaginary frequencies: ${analysisData.frequencyData.filter((f: number) => f < 0).length} (potential transition states)
+- Real frequencies: ${analysisData.frequencyData.filter((f: number) => f >= 0).length}
 ` : 'No vibrational frequency data available for analysis.'}
 
 ## Key Findings
@@ -841,30 +841,30 @@ ${generateKeyFindings(analysisData, stats).map((finding: string, i: number) => `
 
 ## Research Recommendations
 
-1. **Data Quality:** ${stats.enhanced ? 'Excellent data quality with cclib validation' : 'Consider upgrading to cclib for enhanced data validation'}
+1. Data Quality: ${stats.enhanced ? 'Excellent data quality with cclib validation' : 'Consider upgrading to cclib for enhanced data validation'}
 
-2. **Analysis Opportunities:** 
+2. Analysis Opportunities: 
    - ${analysisData.energyData.length > 1 ? 'Comparative energy analysis feasible across multiple systems' : 'Single system analysis - consider adding comparative structures'}
    - ${analysisData.homoLumoData.length > 0 ? 'Electronic property trends can be investigated' : 'HOMO-LUMO analysis not available with current data'}
    - ${analysisData.frequencyData.length > 0 ? 'Vibrational mode analysis and IR/Raman prediction possible' : 'Frequency calculations needed for spectroscopic predictions'}
 
-3. **Enhanced Capabilities:** ${stats.enhanced ? 'Full cclib feature set available for advanced analysis' : 'Consider cclib integration for thermochemical and spectroscopic analysis'}
+3. Enhanced Capabilities: ${stats.enhanced ? 'Full cclib feature set available for advanced analysis' : 'Consider cclib integration for thermochemical and spectroscopic analysis'}
 
 ## Technical Details
 
-- **Knowledge Graph Format:** RDF/Turtle with chemical ontologies
-- **Data Storage:** ${(stats.fileSize / 1024).toFixed(1)} KB in semantic graph format
-- **Processing Time:** Real-time monitoring and automatic updates
-- **Compatibility:** Supports ${stats.enhanced ? '18+ quantum chemistry programs via cclib' : 'Gaussian output files'}
-- **Visualizations:** Generated using Python matplotlib for publication-quality charts
+- Knowledge Graph Format: RDF/Turtle with chemical ontologies
+- Data Storage: ${(stats.fileSize / 1024).toFixed(1)} KB in semantic graph format
+- Processing Time: Real-time monitoring and automatic updates
+- Compatibility: Supports ${stats.enhanced ? '18+ quantum chemistry programs via cclib' : 'Gaussian output files'}
+- Visualizations: Generated using Python matplotlib for publication-quality charts
 
 ## Appendix
 
 ### File Locations
-- **Main Knowledge Graph:** \`data/gaussian-knowledge-graph.ttl\`
-- **Reports Directory:** \`data/reports/\`
-- **Visualizations:** \`data/visualizations/\`
-- **Export Files:** \`data/exports/\`
+- Main Knowledge Graph: \`data/gaussian-knowledge-graph.ttl\`
+- Reports Directory: \`data/reports/\`
+- Visualizations: \`data/visualizations/\`
+- Export Files: \`data/exports/\`
 
 ### Additional Resources
 - [cclib Documentation](https://cclib.github.io/) - For enhanced parsing capabilities
@@ -874,9 +874,9 @@ ${generateKeyFindings(analysisData, stats).map((finding: string, i: number) => `
 
 ---
 
-*Report generated by ElizaOS Gaussian Knowledge Graph Plugin v2.0*  
-*${stats.enhanced ? 'Powered by cclib for comprehensive molecular analysis' : 'Basic analysis mode - upgrade to cclib for enhanced features'}*
-*Charts powered by Python matplotlib for professional-quality visualizations*
+Report generated by ElizaOS Gaussian Knowledge Graph Plugin v2.0  
+${stats.enhanced ? 'Powered by cclib for comprehensive molecular analysis' : 'Basic analysis mode - upgrade to cclib for enhanced features'}
+Charts powered by Python matplotlib for professional-quality visualizations
 `;
 
     await fs.writeFile(reportPath, markdownContent, 'utf-8');
@@ -895,45 +895,45 @@ async function generateExecutiveSummary(analysisData: any, stats: any, timestamp
 
     const summaryContent = `# Executive Summary: Gaussian Analysis
 
-**Date:** ${new Date().toLocaleDateString()}  
-**Analysis Type:** ${stats.enhanced ? 'Enhanced cclib Analysis' : 'Basic Analysis'}  
-**Report ID:** ${timestamp}
+Date: ${new Date().toLocaleDateString()}  
+Analysis Type: ${stats.enhanced ? 'Enhanced cclib Analysis' : 'Basic Analysis'}  
+Report ID: ${timestamp}
 
 ## Key Metrics
 
-🧪 **${stats.molecules || 0}** molecular systems analyzed  
-⚡ **${stats.scfEnergies || 0}** energy calculations completed  
-🎵 **${stats.frequencies || 0}** vibrational frequencies computed  
-⚛️ **${stats.atoms || 0}** atomic positions processed  
+🧪 ${stats.molecules || 0} molecular systems analyzed  
+⚡ ${stats.scfEnergies || 0} energy calculations completed  
+🎵 ${stats.frequencies || 0} vibrational frequencies computed  
+⚛️ ${stats.atoms || 0} atomic positions processed  
 
 ${stats.enhanced ? `
 ## Enhanced Features (cclib)
 
-🌡️ **${(stats.thermochemistry?.enthalpy || 0) + (stats.thermochemistry?.entropy || 0)}** thermochemical properties  
-🌈 **${(stats.spectroscopy?.electronicTransitions || 0) + (stats.spectroscopy?.irIntensities || 0)}** spectroscopic properties  
-🧮 **${(stats.basisSet?.molecularOrbitals || 0) + (stats.basisSet?.basisFunctions || 0)}** basis set properties  
-🎯 **${stats.optimization?.convergedCalculations || 0}**/**${(stats.optimization?.convergedCalculations || 0) + (stats.optimization?.failedOptimizations || 0)}** successful optimizations
+🌡️ ${(stats.thermochemistry?.enthalpy || 0) + (stats.thermochemistry?.entropy || 0)} thermochemical properties  
+🌈 ${(stats.spectroscopy?.electronicTransitions || 0) + (stats.spectroscopy?.irIntensities || 0)} spectroscopic properties  
+🧮 ${(stats.basisSet?.molecularOrbitals || 0) + (stats.basisSet?.basisFunctions || 0)} basis set properties  
+🎯 ${stats.optimization?.convergedCalculations || 0}/${(stats.optimization?.convergedCalculations || 0) + (stats.optimization?.failedOptimizations || 0)} successful optimizations
 
 ` : ''}
 
 ## Critical Findings
 
-${findings.slice(0, 3).map((finding: string, i: number) => `**${i + 1}.** ${finding}`).join('\n\n')}
+${findings.slice(0, 3).map((finding: string, i: number) => `${i + 1}. ${finding}`).join('\n\n')}
 
 ## Data Quality Assessment
 
-- **Parser Quality:** ${stats.enhanced ? '✅ Excellent (cclib validated)' : '⚠️ Basic (consider cclib upgrade)'}
-- **Data Completeness:** ${(stats.scfEnergies || 0) > 0 ? '✅' : '❌'} Energy | ${(stats.frequencies || 0) > 0 ? '✅' : '❌'} Frequencies | ${(stats.homoLumoGaps || 0) > 0 ? '✅' : '❌'} Electronic
-- **Calculation Status:** ${imaginaryFreqs === 0 ? '✅ All real frequencies' : `⚠️ ${imaginaryFreqs} imaginary frequencies detected`}
-- **Visualization Quality:** ✅ Professional matplotlib charts generated
+- Parser Quality: ${stats.enhanced ? '✅ Excellent (cclib validated)' : '⚠️ Basic (consider cclib upgrade)'}
+- Data Completeness: ${(stats.scfEnergies || 0) > 0 ? '✅' : '❌'} Energy | ${(stats.frequencies || 0) > 0 ? '✅' : '❌'} Frequencies | ${(stats.homoLumoGaps || 0) > 0 ? '✅' : '❌'} Electronic
+- Calculation Status: ${imaginaryFreqs === 0 ? '✅ All real frequencies' : `⚠️ ${imaginaryFreqs} imaginary frequencies detected`}
+- Visualization Quality: ✅ Professional matplotlib charts generated
 
 ## Strategic Recommendations
 
-1. **Immediate Actions:** ${avgGap > 0 && avgGap < 2 ? 'Review small HOMO-LUMO gaps for reactivity implications' : 'Current electronic properties appear stable'}
+1. Immediate Actions: ${avgGap > 0 && avgGap < 2 ? 'Review small HOMO-LUMO gaps for reactivity implications' : 'Current electronic properties appear stable'}
 
-2. **Enhancement Opportunities:** ${stats.enhanced ? 'Leverage full cclib dataset for machine learning applications' : 'Consider cclib integration for 10x more molecular properties'}
+2. Enhancement Opportunities: ${stats.enhanced ? 'Leverage full cclib dataset for machine learning applications' : 'Consider cclib integration for 10x more molecular properties'}
 
-3. **Research Priorities:** ${analysisData.energyData.length > 5 ? 'Sufficient data for statistical analysis and trend identification' : 'Expand dataset for robust statistical analysis'}
+3. Research Priorities: ${analysisData.energyData.length > 5 ? 'Sufficient data for statistical analysis and trend identification' : 'Expand dataset for robust statistical analysis'}
 
 ## Next Steps
 
@@ -943,11 +943,11 @@ ${stats.enhanced ?
 
 ---
 
-**Bottom Line:** ${stats.molecules > 0 ? 
+Bottom Line: ${stats.molecules > 0 ? 
     `Analysis of ${stats.molecules} molecular system${stats.molecules > 1 ? 's' : ''} ${stats.enhanced ? 'with comprehensive cclib enhancement ' : ''}provides ${findings.length > 0 ? 'actionable insights' : 'baseline data'} for ${avgGap > 4 ? 'stable molecular design' : 'reactive system studies'}.` : 
     'No molecular data available - ensure Gaussian output files are placed in example_logs/ directory.'}
 
-*Generated by ElizaOS Gaussian Knowledge Graph Plugin with Python matplotlib visualizations*
+Generated by ElizaOS Gaussian Knowledge Graph Plugin with Python matplotlib visualizations
 `;
 
     await fs.writeFile(summaryPath, summaryContent, 'utf-8');

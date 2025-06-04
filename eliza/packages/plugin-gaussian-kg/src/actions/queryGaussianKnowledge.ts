@@ -84,59 +84,59 @@ export const queryGaussianKnowledgeAction: Action = {
                 if (stats.error) {
                     responseText = `❌ Error getting knowledge graph stats: ${stats.error}`;
                 } else {
-                    responseText = `📊 **Enhanced Gaussian Knowledge Graph Statistics**
+                    responseText = `📊 Enhanced Gaussian Knowledge Graph Statistics
 
-📁 **Storage & Parser**:
-- 📦 **File Size**: ${(stats.fileSize / 1024).toFixed(1)} KB
-- 🔬 **Parser**: ${stats.parser || 'basic'} ${stats.enhanced ? '(cclib enhanced)' : ''}
-- 🧮 **Total RDF Triples**: ${stats.totalTriples}
+📁 Storage & Parser:
+- 📦 File Size: ${(stats.fileSize / 1024).toFixed(1)} KB
+- 🔬 Parser: ${stats.parser || 'basic'} ${stats.enhanced ? '(cclib enhanced)' : ''}
+- 🧮 Total RDF Triples: ${stats.totalTriples}
 
-🧪 **Molecular Data**:
-- 🧬 **Molecules Analyzed**: ${stats.molecules}
-- ⚡ **SCF Energies**: ${stats.scfEnergies}
-- 🔗 **HOMO-LUMO Gaps**: ${stats.homoLumoGaps}
-- 🎵 **Vibrational Frequencies**: ${stats.frequencies}
-- ⚛️ **Total Atoms**: ${stats.atoms}
+🧪 Molecular Data:
+- 🧬 Molecules Analyzed: ${stats.molecules}
+- ⚡ SCF Energies: ${stats.scfEnergies}
+- 🔗 HOMO-LUMO Gaps: ${stats.homoLumoGaps}
+- 🎵 Vibrational Frequencies: ${stats.frequencies}
+- ⚛️ Total Atoms: ${stats.atoms}
 
-📄 **Files & Updates**:
-- 📁 **Files Processed**: ${stats.processedFiles}
-- 🕒 **Last Updated**: ${new Date(stats.lastModified).toLocaleString()}`;
+📄 Files & Updates:
+- 📁 Files Processed: ${stats.processedFiles}
+- 🕒 Last Updated: ${new Date(stats.lastModified).toLocaleString()}`;
 
                     // Add enhanced cclib statistics if available
                     if (stats.enhanced && stats.thermochemistry) {
-                        responseText += `\n\n🌡️ **Thermochemical Properties** (cclib):
-- 🔥 **Enthalpy Calculations**: ${stats.thermochemistry.enthalpy}
-- 📊 **Entropy Calculations**: ${stats.thermochemistry.entropy}
-- ⚡ **Free Energy Data**: ${stats.thermochemistry.freeEnergy}
-- 🔬 **ZPVE Corrections**: ${stats.thermochemistry.zpve}`;
+                        responseText += `\n\n🌡️ Thermochemical Properties (cclib):
+- 🔥 Enthalpy Calculations: ${stats.thermochemistry.enthalpy}
+- 📊 Entropy Calculations: ${stats.thermochemistry.entropy}
+- ⚡ Free Energy Data: ${stats.thermochemistry.freeEnergy}
+- 🔬 ZPVE Corrections: ${stats.thermochemistry.zpve}`;
                     }
 
                     if (stats.enhanced && stats.spectroscopy) {
-                        responseText += `\n\n🌈 **Spectroscopic Data** (cclib):
-- 🌟 **Electronic Transitions**: ${stats.spectroscopy.electronicTransitions}
-- 📊 **IR Intensities**: ${stats.spectroscopy.irIntensities}
-- 🔍 **Raman Activities**: ${stats.spectroscopy.ramanActivities}
-- 💫 **Oscillator Strengths**: ${stats.spectroscopy.oscillatorStrengths}`;
+                        responseText += `\n\n🌈 Spectroscopic Data (cclib):
+- 🌟 Electronic Transitions: ${stats.spectroscopy.electronicTransitions}
+- 📊 IR Intensities: ${stats.spectroscopy.irIntensities}
+- 🔍 Raman Activities: ${stats.spectroscopy.ramanActivities}
+- 💫 Oscillator Strengths: ${stats.spectroscopy.oscillatorStrengths}`;
                     }
 
                     if (stats.enhanced && stats.basisSet) {
-                        responseText += `\n\n🧮 **Basis Set Information** (cclib):
-- 🌐 **Molecular Orbitals**: ${stats.basisSet.molecularOrbitals}
-- 🎯 **Basis Functions**: ${stats.basisSet.basisFunctions}
-- ⚛️ **Atomic Orbitals**: ${stats.basisSet.atomicOrbitals}`;
+                        responseText += `\n\n🧮 Basis Set Information (cclib):
+- 🌐 Molecular Orbitals: ${stats.basisSet.molecularOrbitals}
+- 🎯 Basis Functions: ${stats.basisSet.basisFunctions}
+- ⚛️ Atomic Orbitals: ${stats.basisSet.atomicOrbitals}`;
                     }
 
                     if (stats.enhanced && stats.optimization) {
-                        responseText += `\n\n🎯 **Optimization Status** (cclib):
-- ✅ **Converged**: ${stats.optimization.convergedCalculations}
-- ❌ **Failed**: ${stats.optimization.failedOptimizations}`;
+                        responseText += `\n\n🎯 Optimization Status (cclib):
+- ✅ Converged: ${stats.optimization.convergedCalculations}
+- ❌ Failed: ${stats.optimization.failedOptimizations}`;
                     }
 
                     if (stats.enhanced && stats.molecularProperties) {
-                        responseText += `\n\n🧬 **Molecular Properties** (cclib):
-- 📋 **Molecular Formulas**: ${stats.molecularProperties.molecularFormulas}
-- ⚡ **System Charges**: ${stats.molecularProperties.charges}
-- 🎭 **Multiplicities**: ${stats.molecularProperties.multiplicities}`;
+                        responseText += `\n\n🧬 Molecular Properties (cclib):
+- 📋 Molecular Formulas: ${stats.molecularProperties.molecularFormulas}
+- ⚡ System Charges: ${stats.molecularProperties.charges}
+- 🎭 Multiplicities: ${stats.molecularProperties.multiplicities}`;
                     }
                 }
             } else {
@@ -146,30 +146,30 @@ export const queryGaussianKnowledgeAction: Action = {
                 if (result.error) {
                     responseText = `❌ Error querying knowledge graph: ${result.error}`;
                 } else {
-                    responseText = `🔍 **Query Results for**: "${query}"
+                    responseText = `🔍 Query Results for: "${query}"
 
-📊 **Current Knowledge Base**:
-- 🧪 **${result.stats.molecules}** molecules analyzed
-- ⚡ **${result.stats.scfEnergies}** SCF energies
-- 🎵 **${result.stats.frequencies}** vibrational frequencies  
-- ⚛️ **${result.stats.atoms}** atoms total
-- 🔬 **Parser**: ${result.enhanced ? 'cclib (enhanced)' : 'basic'}`;
+📊 Current Knowledge Base:
+- 🧪 ${result.stats.molecules} molecules analyzed
+- ⚡ ${result.stats.scfEnergies} SCF energies
+- 🎵 ${result.stats.frequencies} vibrational frequencies  
+- ⚛️ ${result.stats.atoms} atoms total
+- 🔬 Parser: ${result.enhanced ? 'cclib (enhanced)' : 'basic'}`;
 
                     // Add enhanced statistics if available
                     if (result.enhanced && result.stats.thermochemistry) {
-                        responseText += `\n- 🌡️ **${result.stats.thermochemistry.enthalpy}** enthalpy values
-- 📊 **${result.stats.thermochemistry.entropy}** entropy values
-- ⚡ **${result.stats.thermochemistry.freeEnergy}** free energy values`;
+                        responseText += `\n- 🌡️ ${result.stats.thermochemistry.enthalpy} enthalpy values
+- 📊 ${result.stats.thermochemistry.entropy} entropy values
+- ⚡ ${result.stats.thermochemistry.freeEnergy} free energy values`;
                     }
 
                     if (result.enhanced && result.stats.spectroscopy) {
-                        responseText += `\n- 🌟 **${result.stats.spectroscopy.transitions}** electronic transitions
-- 📊 **${result.stats.spectroscopy.irIntensities}** IR intensities
-- 🔍 **${result.stats.spectroscopy.ramanActivities}** Raman activities`;
+                        responseText += `\n- 🌟 ${result.stats.spectroscopy.transitions} electronic transitions
+- 📊 ${result.stats.spectroscopy.irIntensities} IR intensities
+- 🔍 ${result.stats.spectroscopy.ramanActivities} Raman activities`;
                     }
 
                     if (result.relevantData && result.relevantData.length > 0) {
-                        responseText += `\n\n🎯 **Relevant Data Found**:`;
+                        responseText += `\n\n🎯 Relevant Data Found:`;
                         result.relevantData.forEach((line: string, index: number) => {
                             if (line.trim() && !line.startsWith('#')) {
                                 // Enhanced parsing for better display
@@ -189,7 +189,7 @@ export const queryGaussianKnowledgeAction: Action = {
                             }
                         });
                     } else {
-                        responseText += `\n\n💡 **No specific matches found**. Try queries like:`;
+                        responseText += `\n\n💡 No specific matches found. Try queries like:`;
                         
                         if (result.enhanced) {
                             responseText += `
@@ -265,7 +265,7 @@ export const queryGaussianKnowledgeAction: Action = {
             {
                 user: "{{agent}}",
                 content: {
-                    text: "🔍 Query Results for: \"How many molecules are in the knowledge graph?\"\n\n📊 Current Knowledge Base:\n- 🧪 **3** molecules analyzed\n- ⚡ **3** SCF energies\n- 🎵 **87** vibrational frequencies\n- ⚛️ **45** atoms total\n- 🔬 **Parser**: cclib (enhanced)",
+                    text: "🔍 Query Results for: \"How many molecules are in the knowledge graph?\"\n\n📊 Current Knowledge Base:\n- 🧪 3 molecules analyzed\n- ⚡ 3 SCF energies\n- 🎵 87 vibrational frequencies\n- ⚛️ 45 atoms total\n- 🔬 Parser: cclib (enhanced)",
                 },
             },
         ],

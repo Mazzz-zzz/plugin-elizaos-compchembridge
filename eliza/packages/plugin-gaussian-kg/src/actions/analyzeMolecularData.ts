@@ -9,6 +9,7 @@ import {
 } from "@elizaos/core";
 import { promises as fs } from "fs";
 import * as path from "path";
+import { spawn } from "child_process";
 
 interface AnalyzeMolecularDataContent extends Content {
     text: string;
@@ -42,7 +43,7 @@ export const analyzeMolecularDataAction: Action = {
         
         return analysisKeywords.some(keyword => text.includes(keyword));
     },
-    description: "Perform comprehensive analysis of molecular data using cclib including energy trends, HOMO-LUMO gaps, vibrational frequencies, thermochemistry, and spectroscopic properties",
+    description: "Perform comprehensive analysis of molecular data using cclib including energy trends, HOMO-LUMO gaps, vibrational frequencies, thermochemistry, and spectroscopic properties with matplotlib visualizations",
     handler: async (
         runtime: IAgentRuntime,
         message: Memory,
@@ -69,103 +70,106 @@ export const analyzeMolecularDataAction: Action = {
             if (analysisResult.error) {
                 responseText = `❌ Error performing analysis: ${analysisResult.error}`;
             } else {
-                responseText = `🔬 **Enhanced Molecular Data Analysis Results**
+                responseText = `🔬 Enhanced Molecular Data Analysis Results
 
-📊 **Dataset Overview**:
-- 🧪 **Molecules Analyzed**: ${analysisResult.moleculeCount}
-- ⚡ **Energy Calculations**: ${analysisResult.energyCount}
-- 🎵 **Frequency Calculations**: ${analysisResult.frequencyCount}
-- ⚛️ **Total Atoms**: ${analysisResult.atomCount}
-- 🔬 **Parser Used**: ${analysisResult.enhanced ? 'cclib (enhanced)' : 'basic'}
+📊 Dataset Overview:
+- 🧪 Molecules Analyzed: ${analysisResult.moleculeCount}
+- ⚡ Energy Calculations: ${analysisResult.energyCount}
+- 🎵 Frequency Calculations: ${analysisResult.frequencyCount}
+- ⚛️ Total Atoms: ${analysisResult.atomCount}
+- 🔬 Parser Used: ${analysisResult.enhanced ? 'cclib (enhanced)' : 'basic'}
 
-📈 **Energy Analysis**:
-- 🎯 **Lowest SCF Energy**: ${analysisResult.energyStats.min.toFixed(6)} Hartree
-- 🚀 **Highest SCF Energy**: ${analysisResult.energyStats.max.toFixed(6)} Hartree
-- 📊 **Average SCF Energy**: ${analysisResult.energyStats.average.toFixed(6)} Hartree
-- 📏 **Energy Range**: ${analysisResult.energyStats.range.toFixed(6)} Hartree
+📈 Energy Analysis:
+- 🎯 Lowest SCF Energy: ${analysisResult.energyStats.min.toFixed(6)} Hartree
+- 🚀 Highest SCF Energy: ${analysisResult.energyStats.max.toFixed(6)} Hartree
+- 📊 Average SCF Energy: ${analysisResult.energyStats.average.toFixed(6)} Hartree
+- 📏 Energy Range: ${analysisResult.energyStats.range.toFixed(6)} Hartree
 
-🔋 **HOMO-LUMO Analysis**:
-- 🎭 **Average Gap**: ${analysisResult.homoLumoStats.averageGap.toFixed(4)} eV
-- 🔻 **Smallest Gap**: ${analysisResult.homoLumoStats.minGap.toFixed(4)} eV (${analysisResult.homoLumoStats.minGapMolecule})
-- 🔺 **Largest Gap**: ${analysisResult.homoLumoStats.maxGap.toFixed(4)} eV (${analysisResult.homoLumoStats.maxGapMolecule})
+🔋 HOMO-LUMO Analysis:
+- 🎭 Average Gap: ${analysisResult.homoLumoStats.averageGap.toFixed(4)} eV
+- 🔻 Smallest Gap: ${analysisResult.homoLumoStats.minGap.toFixed(4)} eV (${analysisResult.homoLumoStats.minGapMolecule})
+- 🔺 Largest Gap: ${analysisResult.homoLumoStats.maxGap.toFixed(4)} eV (${analysisResult.homoLumoStats.maxGapMolecule})
 
-🎵 **Vibrational Analysis**:
-- 🎼 **Frequency Range**: ${analysisResult.frequencyStats.min.toFixed(1)} - ${analysisResult.frequencyStats.max.toFixed(1)} cm⁻¹
-- 🎯 **Most Common Range**: ${analysisResult.frequencyStats.commonRange}
-- 🚫 **Imaginary Frequencies**: ${analysisResult.frequencyStats.imaginaryCount}`;
+🎵 Vibrational Analysis:
+- 🎼 Frequency Range: ${analysisResult.frequencyStats.min.toFixed(1)} - ${analysisResult.frequencyStats.max.toFixed(1)} cm⁻¹
+- 🎯 Most Common Range: ${analysisResult.frequencyStats.commonRange}
+- 🚫 Imaginary Frequencies: ${analysisResult.frequencyStats.imaginaryCount}`;
 
                 // Add enhanced cclib-specific analysis if available
                 if (analysisResult.enhanced && analysisResult.thermochemistryStats) {
-                    responseText += `\n\n🌡️ **Thermochemical Properties**:
-- 🔥 **Enthalpy Data**: ${analysisResult.thermochemistryStats.enthalpyCount} calculations
-- 📊 **Entropy Data**: ${analysisResult.thermochemistryStats.entropyCount} calculations
-- ⚡ **Free Energy Data**: ${analysisResult.thermochemistryStats.freeEnergyCount} calculations
-- 🔬 **ZPVE Data**: ${analysisResult.thermochemistryStats.zpveCount} calculations`;
+                    responseText += `\n\n🌡️ Thermochemical Properties:
+- 🔥 Enthalpy Data: ${analysisResult.thermochemistryStats.enthalpyCount} calculations
+- 📊 Entropy Data: ${analysisResult.thermochemistryStats.entropyCount} calculations
+- ⚡ Free Energy Data: ${analysisResult.thermochemistryStats.freeEnergyCount} calculations
+- 🔬 ZPVE Data: ${analysisResult.thermochemistryStats.zpveCount} calculations`;
                 }
 
                 if (analysisResult.enhanced && analysisResult.spectroscopyStats) {
-                    responseText += `\n\n🌈 **Spectroscopic Properties**:
-- 🌟 **Electronic Transitions**: ${analysisResult.spectroscopyStats.transitionCount}
-- 📊 **IR Intensities**: ${analysisResult.spectroscopyStats.irIntensityCount}
-- 🔍 **Raman Activities**: ${analysisResult.spectroscopyStats.ramanCount}
-- 💫 **Oscillator Strengths**: ${analysisResult.spectroscopyStats.oscillatorCount}`;
+                    responseText += `\n\n🌈 Spectroscopic Properties:
+- 🌟 Electronic Transitions: ${analysisResult.spectroscopyStats.transitionCount}
+- 📊 IR Intensities: ${analysisResult.spectroscopyStats.irIntensityCount}
+- 🔍 Raman Activities: ${analysisResult.spectroscopyStats.ramanCount}
+- 💫 Oscillator Strengths: ${analysisResult.spectroscopyStats.oscillatorCount}`;
                 }
 
                 if (analysisResult.enhanced && analysisResult.basisStats) {
-                    responseText += `\n\n🧮 **Basis Set Information**:
-- 🌐 **Molecular Orbitals**: ${analysisResult.basisStats.moCount} total
-- 🎯 **Basis Functions**: ${analysisResult.basisStats.basisFunctionCount} total
-- ⚛️ **Atomic Orbitals**: ${analysisResult.basisStats.aoCount} total`;
+                    responseText += `\n\n🧮 Basis Set Information:
+- 🌐 Molecular Orbitals: ${analysisResult.basisStats.moCount} total
+- 🎯 Basis Functions: ${analysisResult.basisStats.basisFunctionCount} total
+- ⚛️ Atomic Orbitals: ${analysisResult.basisStats.aoCount} total`;
                 }
 
                 if (analysisResult.enhanced && analysisResult.optimizationStats) {
-                    responseText += `\n\n🎯 **Optimization Status**:
-- ✅ **Converged Calculations**: ${analysisResult.optimizationStats.converged}
-- ❌ **Failed Optimizations**: ${analysisResult.optimizationStats.failed}
-- 📊 **Success Rate**: ${analysisResult.optimizationStats.successRate.toFixed(1)}%`;
+                    responseText += `\n\n🎯 Optimization Status:
+- ✅ Converged Calculations: ${analysisResult.optimizationStats.converged}
+- ❌ Failed Optimizations: ${analysisResult.optimizationStats.failed}
+- 📊 Success Rate: ${analysisResult.optimizationStats.successRate.toFixed(1)}%`;
                 }
 
                 if (analysisResult.correlations && analysisResult.correlations.length > 0) {
-                    responseText += `\n\n🔗 **Key Correlations**:`;
+                    responseText += `\n\n🔗 Key Correlations:`;
                     analysisResult.correlations.forEach((corr: string, index: number) => {
                         responseText += `\n${index + 1}. ${corr}`;
                     });
                 }
 
                 if (analysisResult.recommendations && analysisResult.recommendations.length > 0) {
-                    responseText += `\n\n💡 **Recommendations**:`;
+                    responseText += `\n\n💡 Recommendations:`;
                     analysisResult.recommendations.forEach((rec: string, index: number) => {
                         responseText += `\n${index + 1}. ${rec}`;
                     });
                 }
 
                 if (analysisResult.reportPath) {
-                    responseText += `\n\n📄 **Detailed Report**: \`${analysisResult.reportPath}\``;
+                    responseText += `\n\n📄 Detailed Report: \`${analysisResult.reportPath}\``;
                 }
 
                 // Add chart information if available
                 if (analysisResult.chartImages && analysisResult.chartImages.length > 0) {
-                    responseText += `\n\n📊 **Analysis Charts Generated**: ${analysisResult.chartImages.length} visualization(s)`;
+                    responseText += `\n\n📊 Professional Matplotlib Charts Generated: ${analysisResult.chartImages.length} visualization(s)`;
+                    analysisResult.chartImages.forEach((chart: any, index: number) => {
+                        responseText += `\n🖼️  ${chart.title}: Available at ${chart.publicUrl}`;
+                    });
                 }
             }
 
-            // Create memory with image data for direct display
+            // Create memory with attachments pointing to public folder URLs
             const memoryContent: any = { 
                 text: responseText,
                 attachments: []
             };
 
-            // Add analysis charts as attachments for direct display
-            if (analysisResult.chartImages) {
+            // Add chart attachments using public URLs for web serving
+            if (analysisResult.chartImages && analysisResult.chartImages.length > 0) {
                 analysisResult.chartImages.forEach((chart: any, index: number) => {
                     memoryContent.attachments.push({
                         id: (Date.now() + index).toString(),
-                        url: `data:image/svg+xml;base64,${chart.data}`,
+                        url: chart.publicUrl,
                         title: chart.title,
-                        source: "gaussian-kg",
+                        source: "gaussian-kg-charts",
                         description: `Analysis chart: ${chart.title}`,
                         text: "",
-                        contentType: "image/svg+xml"
+                        contentType: "image/png"
                     });
                 });
             }
@@ -202,7 +206,7 @@ export const analyzeMolecularDataAction: Action = {
             {
                 user: "{{agent}}",
                 content: {
-                    text: "I'll perform a comprehensive analysis of the molecular data using cclib.",
+                    text: "I'll perform a comprehensive analysis of the molecular data using cclib with professional matplotlib visualizations.",
                     action: "ANALYZE_MOLECULAR_DATA",
                 },
             },
@@ -215,7 +219,7 @@ export const analyzeMolecularDataAction: Action = {
             {
                 user: "{{agent}}",
                 content: {
-                    text: "Analyzing thermochemical properties including enthalpy, entropy, and free energy.",
+                    text: "Analyzing thermochemical properties including enthalpy, entropy, and free energy with publication-quality charts.",
                     action: "ANALYZE_MOLECULAR_DATA",
                 },
             },
@@ -228,7 +232,7 @@ export const analyzeMolecularDataAction: Action = {
             {
                 user: "{{agent}}",
                 content: {
-                    text: "Performing spectroscopic analysis including electronic transitions and vibrational data.",
+                    text: "Performing spectroscopic analysis including electronic transitions and vibrational data with matplotlib visualizations.",
                     action: "ANALYZE_MOLECULAR_DATA",
                 },
             },
@@ -236,17 +240,66 @@ export const analyzeMolecularDataAction: Action = {
     ] as ActionExample[][],
 };
 
+async function callPythonPlotting(chartType: string, data: any, outputPath?: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const pythonScriptPath = path.join(process.cwd(), "../packages/plugin-gaussian-kg/py/plot_gaussian_analysis.py");
+        const dataJson = JSON.stringify(data);
+        
+        const args = outputPath 
+            ? [pythonScriptPath, chartType, dataJson, outputPath]
+            : [pythonScriptPath, chartType, dataJson];
+            
+        const pythonProcess = spawn('python3', args, {
+            stdio: ['pipe', 'pipe', 'pipe']
+        });
+        
+        let stdout = '';
+        let stderr = '';
+        
+        pythonProcess.stdout.on('data', (data) => {
+            stdout += data.toString();
+        });
+        
+        pythonProcess.stderr.on('data', (data) => {
+            stderr += data.toString();
+        });
+        
+        pythonProcess.on('close', (code) => {
+            if (code === 0) {
+                resolve(outputPath || stdout.trim());
+            } else {
+                console.error(`❌ Python plotting error: ${stderr}`);
+                reject(new Error(`Python plotting failed with code ${code}: ${stderr}`));
+            }
+        });
+        
+        pythonProcess.on('error', (error) => {
+            console.error(`❌ Failed to start Python process: ${error}`);
+            reject(error);
+        });
+    });
+}
+
 async function performEnhancedMolecularAnalysis(knowledgeService: any, query: string): Promise<any> {
     try {
         // Get comprehensive knowledge graph data
         const stats = await knowledgeService.getKnowledgeGraphStats();
         const knowledgeGraphPath = path.join(process.cwd(), "data", "gaussian-knowledge-graph.ttl");
-        const rdfContent = await fs.readFile(knowledgeGraphPath, 'utf-8');
+        
+        let rdfContent = "";
+        try {
+            rdfContent = await fs.readFile(knowledgeGraphPath, 'utf-8');
+        } catch (error) {
+            console.warn("Could not read knowledge graph file, using empty analysis data");
+        }
         
         // Check if cclib enhanced data is available
         const enhanced = stats.enhanced || false;
         
-        // Extract numerical data from RDF with enhanced cclib parsing
+        // Extract file-separated data for proper analysis
+        const fileData = extractFileSeparatedData(rdfContent);
+        
+        // Also extract legacy aggregated data for backward compatibility
         const energyData = extractEnergyData(rdfContent);
         const homoLumoData = extractHOMOLUMOData(rdfContent);
         const frequencyData = extractFrequencyData(rdfContent);
@@ -273,8 +326,10 @@ async function performEnhancedMolecularAnalysis(knowledgeService: any, query: st
             };
         }
         
-        // Generate analysis charts for direct display
-        const chartImages = await generateAnalysisCharts({
+        // Generate professional matplotlib charts
+        const timestamp = Date.now();
+        const chartImages = await generateAnalysisChartsWithPython({
+            fileData,
             energyData,
             homoLumoData,
             frequencyData,
@@ -282,8 +337,9 @@ async function performEnhancedMolecularAnalysis(knowledgeService: any, query: st
             homoLumoStats,
             frequencyStats,
             enhanced,
+            stats,
             ...enhancedAnalysis
-        });
+        }, timestamp);
         
         // Generate correlations and insights with enhanced data
         const correlations = findEnhancedCorrelations(energyData, homoLumoData, frequencyData, enhancedAnalysis, enhanced);
@@ -321,52 +377,129 @@ async function performEnhancedMolecularAnalysis(knowledgeService: any, query: st
     }
 }
 
-async function generateAnalysisCharts(analysisData: any): Promise<any[]> {
+async function generateAnalysisChartsWithPython(analysisData: any, timestamp: number): Promise<any[]> {
     const charts: any[] = [];
     
     try {
-        // Generate energy distribution chart
-        if (analysisData.energyData && analysisData.energyData.length > 0) {
-            const energyChart = generateEnergyDistributionChart(analysisData.energyData, analysisData.energyStats);
-            charts.push({
-                title: "SCF Energy Distribution",
-                data: Buffer.from(energyChart).toString('base64')
-            });
+        // Create visualizations directory for this analysis
+        const visualizationsDir = path.join(process.cwd(), "data", "visualizations", `analysis-${timestamp}`);
+        await fs.mkdir(visualizationsDir, { recursive: true });
+        
+        // Create public charts directory for web serving
+        const publicChartsDir = path.join(process.cwd(), "../client/public/charts", `analysis-${timestamp}`);
+        await fs.mkdir(publicChartsDir, { recursive: true });
+        
+        // Generate file-separated energy analysis if available
+        if (analysisData.fileData && Object.keys(analysisData.fileData).length > 0) {
+            try {
+                const energyPath = path.join(visualizationsDir, "file-separated-energy-analysis.png");
+                const publicEnergyPath = path.join(publicChartsDir, "file-separated-energy-analysis.png");
+                await callPythonPlotting("file_separated_energy", analysisData.fileData, energyPath);
+                
+                // Copy to public directory for web serving
+                await fs.copyFile(energyPath, publicEnergyPath);
+                
+                charts.push({
+                    title: "SCF Energy Analysis by File",
+                    path: path.relative(process.cwd(), energyPath),
+                    publicUrl: `/charts/analysis-${timestamp}/file-separated-energy-analysis.png`,
+                    filename: "file-separated-energy-analysis.png"
+                });
+            } catch (error) {
+                console.error("Error generating energy analysis chart:", error);
+            }
         }
         
-        // Generate HOMO-LUMO gap chart
-        if (analysisData.homoLumoData && analysisData.homoLumoData.length > 0) {
-            const gapChart = generateHOMOLUMOChart(analysisData.homoLumoData, analysisData.homoLumoStats);
-            charts.push({
-                title: "HOMO-LUMO Gap Analysis",
-                data: Buffer.from(gapChart).toString('base64')
-            });
+        // Generate file-separated HOMO-LUMO analysis if available
+        const hasGapData = Object.values(analysisData.fileData || {}).some((fileData: any) => 
+            fileData.homoLumoData && fileData.homoLumoData.length > 0);
+        
+        if (hasGapData) {
+            try {
+                const gapPath = path.join(visualizationsDir, "file-separated-gaps-analysis.png");
+                const publicGapPath = path.join(publicChartsDir, "file-separated-gaps-analysis.png");
+                await callPythonPlotting("file_separated_gaps", analysisData.fileData, gapPath);
+                
+                // Copy to public directory for web serving
+                await fs.copyFile(gapPath, publicGapPath);
+                
+                charts.push({
+                    title: "HOMO-LUMO Gap Analysis by File",
+                    path: path.relative(process.cwd(), gapPath),
+                    publicUrl: `/charts/analysis-${timestamp}/file-separated-gaps-analysis.png`,
+                    filename: "file-separated-gaps-analysis.png"
+                });
+            } catch (error) {
+                console.error("Error generating gaps analysis chart:", error);
+            }
         }
         
-        // Generate frequency analysis chart
-        if (analysisData.frequencyData && analysisData.frequencyData.length > 0) {
-            const freqChart = generateFrequencyChart(analysisData.frequencyData, analysisData.frequencyStats);
-            charts.push({
-                title: "Vibrational Frequency Analysis",
-                data: Buffer.from(freqChart).toString('base64')
-            });
+        // Generate file-separated frequency analysis if available
+        const hasFreqData = Object.values(analysisData.fileData || {}).some((fileData: any) => 
+            fileData.frequencyData && fileData.frequencyData.length > 0);
+        
+        if (hasFreqData) {
+            try {
+                const frequencyPath = path.join(visualizationsDir, "file-separated-frequency-analysis.png");
+                const publicFrequencyPath = path.join(publicChartsDir, "file-separated-frequency-analysis.png");
+                await callPythonPlotting("file_separated_frequency", analysisData.fileData, frequencyPath);
+                
+                // Copy to public directory for web serving
+                await fs.copyFile(frequencyPath, publicFrequencyPath);
+                
+                charts.push({
+                    title: "Vibrational Frequency Analysis by File",
+                    path: path.relative(process.cwd(), frequencyPath),
+                    publicUrl: `/charts/analysis-${timestamp}/file-separated-frequency-analysis.png`,
+                    filename: "file-separated-frequency-analysis.png"
+                });
+            } catch (error) {
+                console.error("Error generating frequency analysis chart:", error);
+            }
         }
         
-        // Generate enhanced cclib charts if available
-        if (analysisData.enhanced && analysisData.thermochemistryStats) {
-            const thermoChart = generateThermochemistryChart(analysisData.thermochemistryStats);
-            charts.push({
-                title: "Thermochemical Properties Overview",
-                data: Buffer.from(thermoChart).toString('base64')
-            });
+        // Generate enhanced cclib analysis summary if available
+        if (analysisData.enhanced) {
+            try {
+                const enhancedPath = path.join(visualizationsDir, "enhanced-analysis-summary.png");
+                const publicEnhancedPath = path.join(publicChartsDir, "enhanced-analysis-summary.png");
+                
+                const enhancedData = { stats: analysisData.stats };
+                await callPythonPlotting("enhanced_properties", enhancedData, enhancedPath);
+                
+                // Copy to public directory for web serving
+                await fs.copyFile(enhancedPath, publicEnhancedPath);
+                
+                charts.push({
+                    title: "Enhanced cclib Analysis Summary",
+                    path: path.relative(process.cwd(), enhancedPath),
+                    publicUrl: `/charts/analysis-${timestamp}/enhanced-analysis-summary.png`,
+                    filename: "enhanced-analysis-summary.png"
+                });
+            } catch (error) {
+                console.error("Error generating enhanced analysis chart:", error);
+            }
         }
         
-        if (analysisData.enhanced && analysisData.spectroscopyStats) {
-            const spectroChart = generateSpectroscopyChart(analysisData.spectroscopyStats);
+        // Generate overview statistics chart
+        try {
+            const overviewPath = path.join(visualizationsDir, "analysis-overview.png");
+            const publicOverviewPath = path.join(publicChartsDir, "analysis-overview.png");
+            
+            const overviewData = { stats: analysisData.stats };
+            await callPythonPlotting("overview", overviewData, overviewPath);
+            
+            // Copy to public directory for web serving
+            await fs.copyFile(overviewPath, publicOverviewPath);
+            
             charts.push({
-                title: "Spectroscopic Properties Overview",
-                data: Buffer.from(spectroChart).toString('base64')
+                title: "Molecular Data Analysis Overview",
+                path: path.relative(process.cwd(), overviewPath),
+                publicUrl: `/charts/analysis-${timestamp}/analysis-overview.png`,
+                filename: "analysis-overview.png"
             });
+        } catch (error) {
+            console.error("Error generating analysis overview chart:", error);
         }
         
     } catch (error) {
@@ -376,300 +509,56 @@ async function generateAnalysisCharts(analysisData: any): Promise<any[]> {
     return charts;
 }
 
-function generateEnergyDistributionChart(energyData: number[], energyStats: any): string {
-    const width = 600;
-    const height = 400;
-    const margin = { top: 40, right: 30, bottom: 60, left: 80 };
-    const chartWidth = width - margin.left - margin.right;
-    const chartHeight = height - margin.top - margin.bottom;
+function extractFileSeparatedData(rdfContent: string): Record<string, any> {
+    const fileData: Record<string, any> = {};
+    const lines = rdfContent.split('\n');
     
-    // Create histogram bins
-    const binCount = Math.min(10, energyData.length);
-    const binWidth = energyStats.range / binCount;
-    const bins: number[] = new Array(binCount).fill(0);
+    let currentFile = '';
+    let currentMolecule = '';
     
-    energyData.forEach(energy => {
-        const binIndex = Math.min(Math.floor((energy - energyStats.min) / binWidth), binCount - 1);
-        bins[binIndex]++;
-    });
-    
-    const maxBinValue = Math.max(...bins);
-    
-    let svg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-        <style>
-            .bar { fill: #4ecdc4; stroke: #fff; stroke-width: 1; opacity: 0.8; }
-            .axis { stroke: #333; stroke-width: 1; }
-            .axis-text { fill: #333; font-size: 11px; font-family: Arial; }
-            .title { fill: #333; font-size: 16px; font-family: Arial; font-weight: bold; text-anchor: middle; }
-            .label { fill: #333; font-size: 12px; font-family: Arial; text-anchor: middle; }
-            .grid { stroke: #ddd; stroke-width: 0.5; }
-        </style>
-    </defs>
-    
-    <rect width="${width}" height="${height}" fill="#f8f9fa"/>
-    <text x="${width/2}" y="25" class="title">SCF Energy Distribution</text>
-    
-    <!-- Chart area background -->
-    <rect x="${margin.left}" y="${margin.top}" width="${chartWidth}" height="${chartHeight}" fill="white" stroke="#ddd"/>
-    
-    <!-- Grid lines -->`;
-    
-    // Horizontal grid lines
-    for (let i = 0; i <= 5; i++) {
-        const y = margin.top + (i * chartHeight / 5);
-        svg += `\n    <line class="grid" x1="${margin.left}" y1="${y}" x2="${margin.left + chartWidth}" y2="${y}"/>`;
-    }
-    
-    // Draw bars
-    const barWidth = chartWidth / binCount;
-    bins.forEach((count, i) => {
-        const barHeight = (count / maxBinValue) * chartHeight;
-        const x = margin.left + i * barWidth;
-        const y = margin.top + chartHeight - barHeight;
-        
-        svg += `\n    <rect class="bar" x="${x}" y="${y}" width="${barWidth - 1}" height="${barHeight}"/>`;
-        
-        // Add value labels on bars
-        if (count > 0) {
-            svg += `\n    <text class="axis-text" x="${x + barWidth/2}" y="${y - 5}" text-anchor="middle">${count}</text>`;
+    for (const line of lines) {
+        // Extract source file information - look for file references
+        const fileMatch = line.match(/ex:(\w+)(?:_log|_out|_gjf)?/); // Match typical Gaussian file patterns
+        if (fileMatch && line.includes('QuantumCalculation')) {
+            currentFile = fileMatch[1] + '.log'; // Assume .log extension
+            currentMolecule = fileMatch[1];
+            
+            // Initialize file data structure
+            if (!fileData[currentFile]) {
+                fileData[currentFile] = {
+                    energyData: [],
+                    homoLumoData: [],
+                    frequencyData: []
+                };
+            }
         }
-    });
-    
-    // X-axis
-    svg += `\n    <line class="axis" x1="${margin.left}" y1="${margin.top + chartHeight}" x2="${margin.left + chartWidth}" y2="${margin.top + chartHeight}"/>`;
-    
-    // X-axis labels
-    for (let i = 0; i <= binCount; i++) {
-        const x = margin.left + (i * chartWidth / binCount);
-        const energy = energyStats.min + (i * binWidth);
-        svg += `\n    <text class="axis-text" x="${x}" y="${margin.top + chartHeight + 20}" text-anchor="middle">${energy.toFixed(3)}</text>`;
+        
+        // Extract data for current file
+        if (currentFile) {
+            // Extract SCF energies
+            const energyMatch = line.match(/ontocompchem:hasSCFEnergy\s+(-?\d+\.?\d*)/);
+            if (energyMatch) {
+                fileData[currentFile].energyData.push(parseFloat(energyMatch[1]));
+            }
+            
+            // Extract HOMO-LUMO gaps
+            const gapMatch = line.match(/ontocompchem:hasHOMOLUMOGap\s+(-?\d+\.?\d*)/);
+            if (gapMatch) {
+                fileData[currentFile].homoLumoData.push({
+                    gap: parseFloat(gapMatch[1]),
+                    molecule: currentMolecule
+                });
+            }
+            
+            // Extract frequencies
+            const freqMatch = line.match(/ontocompchem:hasFrequency\s+(-?\d+\.?\d*)/);
+            if (freqMatch) {
+                fileData[currentFile].frequencyData.push(parseFloat(freqMatch[1]));
+            }
+        }
     }
     
-    // Y-axis
-    svg += `\n    <line class="axis" x1="${margin.left}" y1="${margin.top}" x2="${margin.left}" y2="${margin.top + chartHeight}"/>`;
-    
-    // Y-axis labels
-    for (let i = 0; i <= 5; i++) {
-        const y = margin.top + chartHeight - (i * chartHeight / 5);
-        const value = (i * maxBinValue / 5).toFixed(0);
-        svg += `\n    <text class="axis-text" x="${margin.left - 10}" y="${y + 4}" text-anchor="end">${value}</text>`;
-    }
-    
-    // Axis labels
-    svg += `\n    <text class="label" x="${margin.left + chartWidth/2}" y="${height - 10}" text-anchor="middle">SCF Energy (Hartree)</text>`;
-    svg += `\n    <text class="label" x="15" y="${margin.top + chartHeight/2}" text-anchor="middle" transform="rotate(-90 15 ${margin.top + chartHeight/2})">Frequency</text>`;
-    
-    // Statistics box
-    svg += `\n    <g transform="translate(${width - 150}, ${margin.top + 20})">
-        <rect x="0" y="0" width="140" height="80" fill="white" stroke="#ddd" opacity="0.9"/>
-        <text class="axis-text" x="5" y="15">Statistics:</text>
-        <text class="axis-text" x="5" y="30">Min: ${energyStats.min.toFixed(4)}</text>
-        <text class="axis-text" x="5" y="45">Max: ${energyStats.max.toFixed(4)}</text>
-        <text class="axis-text" x="5" y="60">Avg: ${energyStats.average.toFixed(4)}</text>
-        <text class="axis-text" x="5" y="75">Count: ${energyData.length}</text>
-    </g>`;
-    
-    svg += `\n</svg>`;
-    return svg;
-}
-
-function generateHOMOLUMOChart(homoLumoData: any[], homoLumoStats: any): string {
-    const width = 600;
-    const height = 400;
-    const margin = { top: 40, right: 30, bottom: 60, left: 80 };
-    const chartWidth = width - margin.left - margin.right;
-    const chartHeight = height - margin.top - margin.bottom;
-    
-    let svg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-        <style>
-            .point { fill: #ff6b6b; stroke: #fff; stroke-width: 1; opacity: 0.8; }
-            .axis { stroke: #333; stroke-width: 1; }
-            .axis-text { fill: #333; font-size: 11px; font-family: Arial; }
-            .title { fill: #333; font-size: 16px; font-family: Arial; font-weight: bold; text-anchor: middle; }
-            .label { fill: #333; font-size: 12px; font-family: Arial; text-anchor: middle; }
-            .grid { stroke: #ddd; stroke-width: 0.5; }
-        </style>
-    </defs>
-    
-    <rect width="${width}" height="${height}" fill="#f8f9fa"/>
-    <text x="${width/2}" y="25" class="title">HOMO-LUMO Gap Analysis</text>
-    
-    <!-- Chart area -->
-    <rect x="${margin.left}" y="${margin.top}" width="${chartWidth}" height="${chartHeight}" fill="white" stroke="#ddd"/>`;
-    
-    // Plot points
-    const maxGap = homoLumoStats.maxGap;
-    const minGap = homoLumoStats.minGap;
-    const gapRange = maxGap - minGap || 1;
-    
-    homoLumoData.forEach((data, i) => {
-        const x = margin.left + (i / (homoLumoData.length - 1)) * chartWidth;
-        const y = margin.top + chartHeight - ((data.gap - minGap) / gapRange) * chartHeight;
-        
-        svg += `\n    <circle class="point" cx="${x}" cy="${y}" r="4"/>`;
-    });
-    
-    // Average line
-    const avgY = margin.top + chartHeight - ((homoLumoStats.averageGap - minGap) / gapRange) * chartHeight;
-    svg += `\n    <line stroke="#ffe66d" stroke-width="2" stroke-dasharray="5,5" x1="${margin.left}" y1="${avgY}" x2="${margin.left + chartWidth}" y2="${avgY}"/>`;
-    svg += `\n    <text class="axis-text" x="${margin.left + chartWidth - 80}" y="${avgY - 5}">Avg: ${homoLumoStats.averageGap.toFixed(3)} eV</text>`;
-    
-    // Axes
-    svg += `\n    <line class="axis" x1="${margin.left}" y1="${margin.top + chartHeight}" x2="${margin.left + chartWidth}" y2="${margin.top + chartHeight}"/>`;
-    svg += `\n    <line class="axis" x1="${margin.left}" y1="${margin.top}" x2="${margin.left}" y2="${margin.top + chartHeight}"/>`;
-    
-    // Labels
-    svg += `\n    <text class="label" x="${margin.left + chartWidth/2}" y="${height - 10}">Molecule Index</text>`;
-    svg += `\n    <text class="label" x="15" y="${margin.top + chartHeight/2}" transform="rotate(-90 15 ${margin.top + chartHeight/2})">HOMO-LUMO Gap (eV)</text>`;
-    
-    svg += `\n</svg>`;
-    return svg;
-}
-
-function generateFrequencyChart(frequencyData: number[], frequencyStats: any): string {
-    const width = 600;
-    const height = 400;
-    const margin = { top: 40, right: 30, bottom: 60, left: 80 };
-    const chartWidth = width - margin.left - margin.right;
-    const chartHeight = height - margin.top - margin.bottom;
-    
-    let svg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-        <style>
-            .point-real { fill: #4ecdc4; stroke: #fff; stroke-width: 1; opacity: 0.7; }
-            .point-imag { fill: #ff6b6b; stroke: #fff; stroke-width: 1; opacity: 0.7; }
-            .axis { stroke: #333; stroke-width: 1; }
-            .axis-text { fill: #333; font-size: 11px; font-family: Arial; }
-            .title { fill: #333; font-size: 16px; font-family: Arial; font-weight: bold; text-anchor: middle; }
-            .label { fill: #333; font-size: 12px; font-family: Arial; text-anchor: middle; }
-        </style>
-    </defs>
-    
-    <rect width="${width}" height="${height}" fill="#f8f9fa"/>
-    <text x="${width/2}" y="25" class="title">Vibrational Frequency Analysis</text>
-    
-    <!-- Chart area -->
-    <rect x="${margin.left}" y="${margin.top}" width="${chartWidth}" height="${chartHeight}" fill="white" stroke="#ddd"/>`;
-    
-    // Zero line
-    const zeroY = margin.top + chartHeight/2;
-    svg += `\n    <line stroke="#999" stroke-width="1" x1="${margin.left}" y1="${zeroY}" x2="${margin.left + chartWidth}" y2="${zeroY}"/>`;
-    svg += `\n    <text class="axis-text" x="${margin.left + chartWidth + 5}" y="${zeroY + 4}">0 cm⁻¹</text>`;
-    
-    // Plot frequencies
-    const maxAbsFreq = Math.max(Math.abs(frequencyStats.min), Math.abs(frequencyStats.max));
-    
-    frequencyData.forEach((freq, i) => {
-        const x = margin.left + (i / (frequencyData.length - 1)) * chartWidth;
-        const y = zeroY - (freq / maxAbsFreq) * (chartHeight / 2);
-        const cssClass = freq < 0 ? 'point-imag' : 'point-real';
-        
-        svg += `\n    <circle class="${cssClass}" cx="${x}" cy="${y}" r="3"/>`;
-    });
-    
-    // Axes
-    svg += `\n    <line class="axis" x1="${margin.left}" y1="${margin.top + chartHeight}" x2="${margin.left + chartWidth}" y2="${margin.top + chartHeight}"/>`;
-    svg += `\n    <line class="axis" x1="${margin.left}" y1="${margin.top}" x2="${margin.left}" y2="${margin.top + chartHeight}"/>`;
-    
-    // Labels
-    svg += `\n    <text class="label" x="${margin.left + chartWidth/2}" y="${height - 10}">Frequency Mode</text>`;
-    svg += `\n    <text class="label" x="15" y="${margin.top + chartHeight/2}" transform="rotate(-90 15 ${margin.top + chartHeight/2})">Frequency (cm⁻¹)</text>`;
-    
-    // Legend
-    svg += `\n    <g transform="translate(${width - 120}, ${margin.top + 20})">
-        <rect x="0" y="0" width="110" height="60" fill="white" stroke="#ddd" opacity="0.9"/>
-        <circle class="point-real" cx="15" cy="20" r="4"/>
-        <text class="axis-text" x="25" y="24">Real</text>
-        <circle class="point-imag" cx="15" cy="40" r="4"/>
-        <text class="axis-text" x="25" y="44">Imaginary</text>
-    </g>`;
-    
-    svg += `\n</svg>`;
-    return svg;
-}
-
-function generateThermochemistryChart(thermoStats: any): string {
-    const width = 500;
-    const height = 300;
-    const data = [
-        { label: 'Enthalpy', value: thermoStats.enthalpyCount, color: '#ff6b6b' },
-        { label: 'Entropy', value: thermoStats.entropyCount, color: '#4ecdc4' },
-        { label: 'Free Energy', value: thermoStats.freeEnergyCount, color: '#ffe66d' },
-        { label: 'ZPVE', value: thermoStats.zpveCount, color: '#95e1d3' }
-    ];
-    
-    const maxValue = Math.max(...data.map(d => d.value), 1);
-    const barHeight = 40;
-    const barSpacing = 15;
-    const chartTop = 60;
-    const chartLeft = 100;
-    
-    let svg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-        <style>
-            .axis-text { fill: #333; font-size: 11px; font-family: Arial; }
-            .title { fill: #333; font-size: 16px; font-family: Arial; font-weight: bold; text-anchor: middle; }
-            .label { fill: #333; font-size: 12px; font-family: Arial; }
-        </style>
-    </defs>
-    
-    <rect width="${width}" height="${height}" fill="#f8f9fa"/>
-    <text x="${width/2}" y="25" class="title">Thermochemical Properties</text>`;
-    
-    data.forEach((item, i) => {
-        const y = chartTop + i * (barHeight + barSpacing);
-        const barWidth = (item.value / maxValue) * (width - chartLeft - 50);
-        
-        svg += `\n    <rect x="${chartLeft}" y="${y}" width="${barWidth}" height="${barHeight}" fill="${item.color}" opacity="0.8"/>`;
-        svg += `\n    <text class="label" x="${chartLeft - 10}" y="${y + barHeight/2 + 4}" text-anchor="end">${item.label}</text>`;
-        svg += `\n    <text class="axis-text" x="${chartLeft + barWidth + 5}" y="${y + barHeight/2 + 4}">${item.value}</text>`;
-    });
-    
-    svg += `\n</svg>`;
-    return svg;
-}
-
-function generateSpectroscopyChart(spectroStats: any): string {
-    const width = 500;
-    const height = 300;
-    const data = [
-        { label: 'Transitions', value: spectroStats.transitionCount, color: '#ff6b6b' },
-        { label: 'IR Intensities', value: spectroStats.irIntensityCount, color: '#4ecdc4' },
-        { label: 'Raman Activities', value: spectroStats.ramanCount, color: '#ffe66d' },
-        { label: 'Oscillator Str.', value: spectroStats.oscillatorCount, color: '#95e1d3' }
-    ];
-    
-    const maxValue = Math.max(...data.map(d => d.value), 1);
-    const barHeight = 40;
-    const barSpacing = 15;
-    const chartTop = 60;
-    const chartLeft = 120;
-    
-    let svg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-        <style>
-            .axis-text { fill: #333; font-size: 11px; font-family: Arial; }
-            .title { fill: #333; font-size: 16px; font-family: Arial; font-weight: bold; text-anchor: middle; }
-            .label { fill: #333; font-size: 12px; font-family: Arial; }
-        </style>
-    </defs>
-    
-    <rect width="${width}" height="${height}" fill="#f8f9fa"/>
-    <text x="${width/2}" y="25" class="title">Spectroscopic Properties</text>`;
-    
-    data.forEach((item, i) => {
-        const y = chartTop + i * (barHeight + barSpacing);
-        const barWidth = (item.value / maxValue) * (width - chartLeft - 50);
-        
-        svg += `\n    <rect x="${chartLeft}" y="${y}" width="${barWidth}" height="${barHeight}" fill="${item.color}" opacity="0.8"/>`;
-        svg += `\n    <text class="label" x="${chartLeft - 10}" y="${y + barHeight/2 + 4}" text-anchor="end">${item.label}</text>`;
-        svg += `\n    <text class="axis-text" x="${chartLeft + barWidth + 5}" y="${y + barHeight/2 + 4}">${item.value}</text>`;
-    });
-    
-    svg += `\n</svg>`;
-    return svg;
+    return fileData;
 }
 
 function extractEnergyData(rdfContent: string): number[] {

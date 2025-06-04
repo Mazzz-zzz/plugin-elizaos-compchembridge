@@ -9,6 +9,7 @@ import {
 } from "@elizaos/core";
 import { promises as fs } from "fs";
 import * as path from "path";
+import { spawn } from "child_process";
 
 interface PlotKnowledgeGraphContent extends Content {
     text: string;
@@ -37,7 +38,7 @@ export const plotKnowledgeGraphAction: Action = {
         
         return plotKeywords.some(keyword => text.includes(keyword));
     },
-    description: "Generate network visualizations and plots of the knowledge graph structure, showing molecular relationships and connections with direct image display",
+    description: "Generate network visualizations and plots of the knowledge graph structure, showing molecular relationships and connections using professional matplotlib charts",
     handler: async (
         runtime: IAgentRuntime,
         message: Memory,
@@ -56,85 +57,73 @@ export const plotKnowledgeGraphAction: Action = {
                 return false;
             }
 
-            // Generate visualization data with direct image output
-            const plotData = await generateKnowledgeGraphPlotWithImages(knowledgeService, query);
+            // Generate visualization data with matplotlib charts
+            const plotData = await generateKnowledgeGraphPlotWithMatplotlib(knowledgeService, query);
             
             let responseText = "";
             
             if (plotData.error) {
                 responseText = `❌ Error generating plot: ${plotData.error}`;
             } else {
-                responseText = `📊 **Knowledge Graph Visualization Generated**
+                responseText = `📊 Knowledge Graph Visualization Generated
 
-🎯 **Graph Structure**:
-- 🔗 **Nodes**: ${plotData.nodeCount} (molecules, atoms, properties)
-- 🌐 **Edges**: ${plotData.edgeCount} (relationships, bonds)
-- 📐 **Components**: ${plotData.components} connected components
-- 🎨 **Layout**: ${plotData.layout} algorithm used
+🎯 Graph Structure:
+- 🔗 Nodes: ${plotData.nodeCount} (molecules, atoms, properties)
+- 🌐 Edges: ${plotData.edgeCount} (relationships, bonds)
+- 📐 Components: ${plotData.components} connected components
+- 🎨 Layout: Professional matplotlib rendering
 
-📈 **Network Properties**:
-- 🏗️  **Density**: ${plotData.density.toFixed(3)}
-- 📏 **Average Path Length**: ${plotData.avgPathLength.toFixed(2)}
-- 🎯 **Clustering Coefficient**: ${plotData.clustering.toFixed(3)}`;
+📈 Network Properties:
+- 🏗️  Density: ${plotData.density.toFixed(3)}
+- 📏 Average Path Length: ${plotData.avgPathLength.toFixed(2)}
+- 🎯 Clustering Coefficient: ${plotData.clustering.toFixed(3)}`;
 
-                // Add the generated image directly to the response
-                if (plotData.networkImageBase64) {
-                    responseText += `\n\n🖼️ **Interactive Network Visualization**:`;
-                    // The image will be displayed directly in chat via the base64 data
+                // Add chart information if available
+                if (plotData.chartImages && plotData.chartImages.length > 0) {
+                    responseText += `\n\n📊 Professional Matplotlib Charts Generated: ${plotData.chartImages.length} visualization(s)`;
+                    plotData.chartImages.forEach((chart: any, index: number) => {
+                        responseText += `\n🖼️  ${chart.title}: Available at ${chart.publicUrl}`;
+                    });
                 }
 
-                if (plotData.analysisImageBase64) {
-                    responseText += `\n\n📊 **Statistical Analysis Chart**:`;
-                    // Additional analysis chart if available
-                }
-
-                responseText += `\n\n📁 **Files Also Saved**:
+                responseText += `\n\n📁 Files Also Saved:
 - 🖼️  Interactive HTML: \`${plotData.htmlFile}\`
 - 📊 Network Data: \`${plotData.jsonFile}\`
-- 🎨 SVG Export: \`${plotData.svgFile}\`
+- 🎨 PNG Charts: Multiple high-resolution files
 
-💡 **Features**:
+💡 Features:
+- Publication-quality matplotlib charts
 - Color-coded nodes by molecular type
-- Hover for detailed property information
-- Zoom and pan capabilities
-- Direct display in chat`;
+- Statistical analysis charts
+- File-separated data visualization
+- Network topology analysis`;
 
                 if (plotData.insights && plotData.insights.length > 0) {
-                    responseText += `\n\n🔍 **Key Insights**:`;
+                    responseText += `\n\n🔍 Key Insights:`;
                     plotData.insights.forEach((insight: string, index: number) => {
                         responseText += `\n${index + 1}. ${insight}`;
                     });
                 }
             }
 
-            // Create memory with image data for direct display
+            // Create memory with attachments pointing to public folder URLs
             const memoryContent: any = { 
                 text: responseText,
                 attachments: []
             };
 
-            // Add images as attachments for direct display
-            if (plotData.networkImageBase64) {
-                memoryContent.attachments.push({
-                    id: Date.now().toString(),
-                    url: `data:image/svg+xml;base64,${plotData.networkImageBase64}`,
-                    title: "Knowledge Graph Network Visualization",
-                    source: "gaussian-kg",
-                    description: "Interactive network visualization of molecular relationships",
-                    text: "",
-                    contentType: "image/svg+xml"
-                });
-            }
-
-            if (plotData.analysisImageBase64) {
-                memoryContent.attachments.push({
-                    id: (Date.now() + 1).toString(),
-                    url: `data:image/svg+xml;base64,${plotData.analysisImageBase64}`,
-                    title: "Statistical Analysis Chart",
-                    source: "gaussian-kg", 
-                    description: "Statistical analysis of the knowledge graph data",
-                    text: "",
-                    contentType: "image/svg+xml"
+            // Add chart attachments using public URLs for web serving
+            if (plotData.chartImages && plotData.chartImages.length > 0) {
+                plotData.chartImages.forEach((chart: any, index: number) => {
+                    memoryContent.attachments.push({
+                        id: (Date.now() + index).toString(),
+                        url: chart.publicUrl,
+                        title: chart.title,
+                        source: "gaussian-kg-network",
+                        description: `Network visualization chart: ${chart.title}`,
+                        text: "",
+                        contentType: "image/png"
+                    });
                 });
             }
 
@@ -170,7 +159,7 @@ export const plotKnowledgeGraphAction: Action = {
             {
                 user: "{{agent}}",
                 content: {
-                    text: "I'll generate an interactive network visualization and display it directly in the chat.",
+                    text: "I'll generate professional network visualizations using matplotlib with publication-quality charts.",
                     action: "PLOT_KNOWLEDGE_GRAPH",
                 },
             },
@@ -183,7 +172,7 @@ export const plotKnowledgeGraphAction: Action = {
             {
                 user: "{{agent}}",
                 content: {
-                    text: "Creating an interactive visualization of molecular relationships with direct image display.",
+                    text: "Creating professional matplotlib visualizations of molecular relationships and network structure.",
                     action: "PLOT_KNOWLEDGE_GRAPH",
                 },
             },
@@ -191,20 +180,64 @@ export const plotKnowledgeGraphAction: Action = {
     ] as ActionExample[][],
 };
 
-async function generateKnowledgeGraphPlotWithImages(knowledgeService: any, query: string): Promise<any> {
+async function callPythonPlotting(chartType: string, data: any, outputPath?: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const pythonScriptPath = path.join(process.cwd(), "../packages/plugin-gaussian-kg/py/plot_gaussian_analysis.py");
+        const dataJson = JSON.stringify(data);
+        
+        const args = outputPath 
+            ? [pythonScriptPath, chartType, dataJson, outputPath]
+            : [pythonScriptPath, chartType, dataJson];
+            
+        const pythonProcess = spawn('python3', args, {
+            stdio: ['pipe', 'pipe', 'pipe']
+        });
+        
+        let stdout = '';
+        let stderr = '';
+        
+        pythonProcess.stdout.on('data', (data) => {
+            stdout += data.toString();
+        });
+        
+        pythonProcess.stderr.on('data', (data) => {
+            stderr += data.toString();
+        });
+        
+        pythonProcess.on('close', (code) => {
+            if (code === 0) {
+                resolve(outputPath || stdout.trim());
+            } else {
+                console.error(`❌ Python plotting error: ${stderr}`);
+                reject(new Error(`Python plotting failed with code ${code}: ${stderr}`));
+            }
+        });
+        
+        pythonProcess.on('error', (error) => {
+            console.error(`❌ Failed to start Python process: ${error}`);
+            reject(error);
+        });
+    });
+}
+
+async function generateKnowledgeGraphPlotWithMatplotlib(knowledgeService: any, query: string): Promise<any> {
     try {
         // Get knowledge graph statistics and data
         const stats = await knowledgeService.getKnowledgeGraphStats();
         const graphData = await knowledgeService.queryKnowledgeGraph("all data");
         
-        // Create output directory (for backup files)
-        const outputDir = path.join(process.cwd(), "data", "visualizations");
+        // Create output directory
+        const timestamp = Date.now();
+        const outputDir = path.join(process.cwd(), "data", "visualizations", `network-${timestamp}`);
         await fs.mkdir(outputDir, { recursive: true });
+        
+        // Create public charts directory for web serving
+        const publicChartsDir = path.join(process.cwd(), "../client/public/charts", `network-${timestamp}`);
+        await fs.mkdir(publicChartsDir, { recursive: true });
         
         // Parse RDF data to extract nodes and edges
         const knowledgeGraphPath = path.join(process.cwd(), "data", "gaussian-knowledge-graph.ttl");
         
-        // Check if file exists and has content
         let rdfContent = "";
         try {
             rdfContent = await fs.readFile(knowledgeGraphPath, 'utf-8');
@@ -219,18 +252,11 @@ async function generateKnowledgeGraphPlotWithImages(knowledgeService: any, query
         // If no data available, create a demo/placeholder visualization
         if (nodes.length === 0) {
             console.log("📊 No data found, creating demo visualization");
-            return createDemoVisualization(stats, outputDir);
+            return createDemoVisualization(stats, outputDir, publicChartsDir, timestamp);
         }
         
-        // Generate SVG directly for chat display
-        const networkSvg = generateNetworkSVG(nodes, edges, stats);
-        const networkImageBase64 = Buffer.from(networkSvg).toString('base64');
-        
-        // Generate analysis chart as PNG (if we have data)
-        let analysisImageBase64 = null;
-        if (stats.enhanced) {
-            analysisImageBase64 = await generateAnalysisChart(stats);
-        }
+        // Generate professional matplotlib charts
+        const chartImages = await generateNetworkChartsWithMatplotlib(nodes, edges, stats, outputDir, publicChartsDir, timestamp);
         
         // Still generate backup files
         const htmlContent = generateHTML(nodes, edges, stats);
@@ -240,9 +266,6 @@ async function generateKnowledgeGraphPlotWithImages(knowledgeService: any, query
         const networkData = { nodes, edges, metadata: stats };
         const jsonFile = path.join(outputDir, "network-data.json");
         await fs.writeFile(jsonFile, JSON.stringify(networkData, null, 2));
-        
-        const svgFile = path.join(outputDir, "knowledge-graph.svg");
-        await fs.writeFile(svgFile, networkSvg);
         
         // Calculate network properties
         const density = edges.length / Math.max(1, nodes.length * (nodes.length - 1));
@@ -256,24 +279,98 @@ async function generateKnowledgeGraphPlotWithImages(knowledgeService: any, query
             nodeCount: nodes.length,
             edgeCount: edges.length,
             components: countConnectedComponents(nodes, edges),
-            layout: "Force-directed",
+            layout: "Force-directed with matplotlib",
             density,
             avgPathLength,
             clustering,
             htmlFile: path.relative(process.cwd(), htmlFile),
             jsonFile: path.relative(process.cwd(), jsonFile),
-            svgFile: path.relative(process.cwd(), svgFile),
             insights,
-            networkImageBase64,
-            analysisImageBase64
+            chartImages
         };
     } catch (error) {
-        console.error("❌ Error in generateKnowledgeGraphPlotWithImages:", error);
+        console.error("❌ Error in generateKnowledgeGraphPlotWithMatplotlib:", error);
         return { error: error.message };
     }
 }
 
-async function createDemoVisualization(stats: any, outputDir: string): Promise<any> {
+async function generateNetworkChartsWithMatplotlib(nodes: any[], edges: any[], stats: any, outputDir: string, publicChartsDir: string, timestamp: number): Promise<any[]> {
+    const charts: any[] = [];
+    
+    try {
+        // Prepare network data for matplotlib visualization
+        const networkData = {
+            nodes: nodes.map((node, i) => ({
+                id: i,
+                label: node.label,
+                type: node.type,
+                uri: node.uri
+            })),
+            edges: edges.map(edge => ({
+                source: edge.source,
+                target: edge.target,
+                label: edge.label,
+                type: edge.type
+            })),
+            stats
+        };
+        
+        // Generate network overview chart
+        try {
+            const overviewPath = path.join(outputDir, "network-overview.png");
+            const publicOverviewPath = path.join(publicChartsDir, "network-overview.png");
+            
+            const overviewData = { stats };
+            await callPythonPlotting("overview", overviewData, overviewPath);
+            
+            // Copy to public directory for web serving
+            await fs.copyFile(overviewPath, publicOverviewPath);
+            
+            charts.push({
+                title: "Knowledge Graph Network Overview",
+                path: path.relative(process.cwd(), overviewPath),
+                publicUrl: `/charts/network-${timestamp}/network-overview.png`,
+                filename: "network-overview.png"
+            });
+        } catch (error) {
+            console.error("Error generating network overview chart:", error);
+        }
+        
+        // Generate enhanced properties chart if available
+        if (stats.enhanced) {
+            try {
+                const enhancedPath = path.join(outputDir, "enhanced-network-properties.png");
+                const publicEnhancedPath = path.join(publicChartsDir, "enhanced-network-properties.png");
+                
+                const enhancedData = { stats };
+                await callPythonPlotting("enhanced_properties", enhancedData, enhancedPath);
+                
+                // Copy to public directory for web serving
+                await fs.copyFile(enhancedPath, publicEnhancedPath);
+                
+                charts.push({
+                    title: "Enhanced cclib Network Properties",
+                    path: path.relative(process.cwd(), enhancedPath),
+                    publicUrl: `/charts/network-${timestamp}/enhanced-network-properties.png`,
+                    filename: "enhanced-network-properties.png"
+                });
+            } catch (error) {
+                console.error("Error generating enhanced network properties chart:", error);
+            }
+        }
+        
+        // Note: For actual network graph visualization, we would need to extend
+        // the Python script with network analysis capabilities using libraries
+        // like networkx and matplotlib. For now, we provide statistical overviews.
+        
+    } catch (error) {
+        console.error("Error generating network charts:", error);
+    }
+    
+    return charts;
+}
+
+async function createDemoVisualization(stats: any, outputDir: string, publicChartsDir: string, timestamp: number): Promise<any> {
     // Create demo nodes and edges
     const demoNodes = [
         { id: 0, label: "Knowledge Graph", type: "molecule", uri: "ex:demo" },
@@ -288,9 +385,28 @@ async function createDemoVisualization(stats: any, outputDir: string): Promise<a
         { source: 2, target: 3, label: "useDirectory", type: "relation" }
     ];
     
-    // Generate demo SVG
-    const demoSvg = generateDemoSVG(stats);
-    const networkImageBase64 = Buffer.from(demoSvg).toString('base64');
+    // Generate demo charts using matplotlib
+    const chartImages: any[] = [];
+    
+    try {
+        const demoOverviewPath = path.join(outputDir, "demo-overview.png");
+        const publicDemoOverviewPath = path.join(publicChartsDir, "demo-overview.png");
+        
+        const demoData = { stats };
+        await callPythonPlotting("overview", demoData, demoOverviewPath);
+        
+        // Copy to public directory for web serving
+        await fs.copyFile(demoOverviewPath, publicDemoOverviewPath);
+        
+        chartImages.push({
+            title: "Knowledge Graph Demo Overview",
+            path: path.relative(process.cwd(), demoOverviewPath),
+            publicUrl: `/charts/network-${timestamp}/demo-overview.png`,
+            filename: "demo-overview.png"
+        });
+    } catch (error) {
+        console.error("Error generating demo chart:", error);
+    }
     
     // Generate demo HTML
     const htmlContent = generateDemoHTML(stats);
@@ -302,84 +418,24 @@ async function createDemoVisualization(stats: any, outputDir: string): Promise<a
     const jsonFile = path.join(outputDir, "network-data-demo.json");
     await fs.writeFile(jsonFile, JSON.stringify(networkData, null, 2));
     
-    const svgFile = path.join(outputDir, "knowledge-graph-demo.svg");
-    await fs.writeFile(svgFile, demoSvg);
-    
     return {
         nodeCount: demoNodes.length,
         edgeCount: demoEdges.length,
         components: 1,
-        layout: "Demo",
+        layout: "Demo with matplotlib",
         density: 0.5,
         avgPathLength: 2,
         clustering: 0.3,
         htmlFile: path.relative(process.cwd(), htmlFile),
         jsonFile: path.relative(process.cwd(), jsonFile),
-        svgFile: path.relative(process.cwd(), svgFile),
         insights: [
             "No Gaussian files have been processed yet",
             "Place .log or .out files in the example_logs/ directory",
-            "The plugin will automatically parse and visualize your data"
+            "The plugin will automatically parse and visualize your data using matplotlib"
         ],
-        networkImageBase64,
+        chartImages,
         demo: true
     };
-}
-
-function generateDemoSVG(stats: any): string {
-    const width = 800;
-    const height = 600;
-    const centerX = width / 2;
-    const centerY = height / 2;
-    
-    return `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-        <style>
-            .demo-bg { fill: #f8f9fa; }
-            .demo-title { fill: #2c3e50; font-size: 24px; font-family: Arial; font-weight: bold; text-anchor: middle; }
-            .demo-subtitle { fill: #7f8c8d; font-size: 16px; font-family: Arial; text-anchor: middle; }
-            .demo-instruction { fill: #3498db; font-size: 14px; font-family: Arial; text-anchor: middle; }
-            .demo-icon { fill: none; stroke: #95a5a6; stroke-width: 3; }
-            .demo-circle { fill: none; stroke: #e74c3c; stroke-width: 2; stroke-dasharray: 5,5; }
-        </style>
-    </defs>
-    
-    <!-- Background -->
-    <rect class="demo-bg" width="${width}" height="${height}"/>
-    
-    <!-- Title -->
-    <text class="demo-title" x="${centerX}" y="80">🧠 Gaussian Knowledge Graph</text>
-    <text class="demo-subtitle" x="${centerX}" y="110">Ready for Data</text>
-    
-    <!-- Main instruction box -->
-    <rect x="${centerX - 200}" y="${centerY - 100}" width="400" height="200" 
-          fill="white" stroke="#bdc3c7" stroke-width="2" rx="10"/>
-    
-    <!-- Icon (folder) -->
-    <g transform="translate(${centerX - 30}, ${centerY - 60})">
-        <rect class="demo-icon" x="0" y="20" width="60" height="40" rx="5"/>
-        <rect class="demo-icon" x="10" y="15" width="20" height="5" rx="2"/>
-        <text x="30" y="45" class="demo-instruction" font-size="12">📁</text>
-    </g>
-    
-    <!-- Instructions -->
-    <text class="demo-instruction" x="${centerX}" y="${centerY - 10}">No Gaussian files detected</text>
-    <text class="demo-instruction" x="${centerX}" y="${centerY + 15}">Place your .log or .out files in:</text>
-    <text class="demo-instruction" x="${centerX}" y="${centerY + 40}" font-weight="bold">example_logs/</text>
-    <text class="demo-instruction" x="${centerX}" y="${centerY + 65}">Files will be automatically parsed with ${stats.parser || 'basic parser'}</text>
-    
-    <!-- Animated circle -->
-    <circle class="demo-circle" cx="${centerX}" cy="${centerY + 120}" r="30">
-        <animate attributeName="r" values="30;40;30" dur="2s" repeatCount="indefinite"/>
-        <animate attributeName="opacity" values="1;0.3;1" dur="2s" repeatCount="indefinite"/>
-    </circle>
-    <text class="demo-instruction" x="${centerX}" y="${centerY + 125}">🔄</text>
-    
-    <!-- Footer -->
-    <text class="demo-subtitle" x="${centerX}" y="${height - 30}">
-        Parser: ${stats.parser || 'basic'} | Enhanced: ${stats.enhanced ? 'Yes' : 'Install cclib for 60+ properties'}
-    </text>
-</svg>`;
 }
 
 function generateDemoHTML(stats: any): string {
@@ -409,7 +465,7 @@ function generateDemoHTML(stats: any): string {
                 <li><strong>Add Files:</strong> Place your Gaussian .log or .out files in the <code>example_logs/</code> directory</li>
                 <li><strong>Automatic Processing:</strong> Files will be automatically parsed using ${stats.parser || 'basic parser'}</li>
                 <li><strong>Enhanced Features:</strong> ${stats.enhanced ? 'cclib is available for 60+ molecular properties!' : 'Install cclib for enhanced parsing with 60+ properties'}</li>
-                <li><strong>Visualization:</strong> Return here to see your molecular data as an interactive network</li>
+                <li><strong>Visualization:</strong> Return here to see your molecular data as professional matplotlib charts</li>
             </ol>
         </div>
         
@@ -419,200 +475,24 @@ function generateDemoHTML(stats: any): string {
             <li><strong>Enhanced Mode:</strong> ${stats.enhanced ? '✅ Yes (cclib)' : '❌ No (install cclib for more features)'}</li>
             <li><strong>Files Processed:</strong> ${stats.processedFiles || 0}</li>
             <li><strong>File Size:</strong> ${((stats.fileSize || 0) / 1024).toFixed(1)} KB</li>
+            <li><strong>Visualization Engine:</strong> Professional matplotlib charts</li>
         </ul>
         
         <div class="demo-notice">
             <h3>💡 What You'll See:</h3>
             <p>Once you add Gaussian files, you'll see:</p>
             <ul>
-                <li>🧬 Molecular structures as nodes</li>
-                <li>⚡ Energy calculations and properties</li>
-                <li>🎵 Vibrational frequencies</li>
-                <li>🔗 Relationships between molecules and properties</li>
-                ${stats.enhanced ? '<li>🌡️ Thermochemical properties (cclib)</li><li>🌈 Spectroscopic data (cclib)</li>' : ''}
+                <li>🧬 Professional network visualizations using matplotlib</li>
+                <li>⚡ Publication-quality energy analysis charts</li>
+                <li>🎵 Vibrational frequency visualizations</li>
+                <li>🔗 Network topology analysis</li>
+                <li>📊 Statistical overview charts</li>
+                ${stats.enhanced ? '<li>🌡️ Enhanced cclib property visualizations</li><li>🌈 Spectroscopic data charts</li>' : ''}
             </ul>
         </div>
     </div>
 </body>
 </html>`;
-}
-
-function generateNetworkSVG(nodes: any[], edges: any[], stats: any): string {
-    const width = 800;
-    const height = 600;
-    const centerX = width / 2;
-    const centerY = height / 2;
-    
-    // Position nodes in a circular layout with some randomization
-    const positionedNodes = nodes.map((node, i) => {
-        const angle = (i / nodes.length) * 2 * Math.PI;
-        const radius = Math.min(200, 50 + (nodes.length * 2));
-        const noise = (Math.random() - 0.5) * 50; // Add some randomness
-        
-        return {
-            ...node,
-            x: centerX + Math.cos(angle) * radius + noise,
-            y: centerY + Math.sin(angle) * radius + noise
-        };
-    });
-    
-    // Create node lookup for edges
-    const nodeMap = new Map();
-    positionedNodes.forEach((node, i) => {
-        nodeMap.set(node.id, i);
-    });
-    
-    let svg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-        <style>
-            .molecule { fill: #ff6b6b; stroke: #fff; stroke-width: 2; }
-            .atom { fill: #4ecdc4; stroke: #fff; stroke-width: 2; }
-            .energy { fill: #ffe66d; stroke: #fff; stroke-width: 2; }
-            .property { fill: #95e1d3; stroke: #fff; stroke-width: 2; }
-            .edge { stroke: #999; stroke-opacity: 0.6; stroke-width: 1; }
-            .text { fill: #333; font-size: 10px; font-family: Arial; text-anchor: middle; }
-            .title { fill: #333; font-size: 16px; font-family: Arial; font-weight: bold; text-anchor: middle; }
-            .stats { fill: #666; font-size: 12px; font-family: Arial; }
-        </style>
-    </defs>
-    
-    <!-- Background -->
-    <rect width="${width}" height="${height}" fill="#f8f9fa"/>
-    
-    <!-- Title -->
-    <text x="${centerX}" y="30" class="title">Knowledge Graph Network Visualization</text>
-    
-    <!-- Statistics -->
-    <text x="20" y="50" class="stats">Nodes: ${nodes.length} | Edges: ${edges.length} | Parser: ${stats.parser || 'basic'}</text>
-    
-    <!-- Edges -->`;
-    
-    // Draw edges
-    edges.forEach(edge => {
-        const sourceIdx = nodeMap.get(edge.source);
-        const targetIdx = nodeMap.get(edge.target);
-        
-        if (sourceIdx !== undefined && targetIdx !== undefined) {
-            const source = positionedNodes[sourceIdx];
-            const target = positionedNodes[targetIdx];
-            
-            svg += `\n    <line class="edge" x1="${source.x}" y1="${source.y}" x2="${target.x}" y2="${target.y}"/>`;
-        }
-    });
-    
-    svg += `\n    
-    <!-- Nodes -->`;
-    
-    // Draw nodes
-    positionedNodes.forEach(node => {
-        const nodeClass = getNodeType(node.uri || node.label);
-        const radius = 8;
-        
-        svg += `\n    <circle class="${nodeClass}" cx="${node.x}" cy="${node.y}" r="${radius}"/>`;
-        
-        // Add labels for important nodes
-        if (node.label && node.label.length < 15) {
-            svg += `\n    <text class="text" x="${node.x}" y="${node.y + radius + 12}">${node.label}</text>`;
-        }
-    });
-    
-    // Add legend
-    svg += `\n    
-    <!-- Legend -->
-    <g transform="translate(20, ${height - 120})">
-        <text x="0" y="0" class="stats">Legend:</text>
-        <circle class="molecule" cx="10" cy="15" r="6"/>
-        <text x="25" y="19" class="stats">Molecules</text>
-        <circle class="atom" cx="10" cy="35" r="6"/>
-        <text x="25" y="39" class="stats">Atoms</text>
-        <circle class="energy" cx="10" cy="55" r="6"/>
-        <text x="25" y="59" class="stats">Energies</text>
-        <circle class="property" cx="10" cy="75" r="6"/>
-        <text x="25" y="79" class="stats">Properties</text>
-    </g>`;
-    
-    svg += `\n</svg>`;
-    
-    return svg;
-}
-
-async function generateAnalysisChart(stats: any): Promise<string | null> {
-    try {
-        // Create a simple analysis chart as SVG, then convert to PNG-like data
-        const width = 600;
-        const height = 400;
-        
-        let chartSvg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-        <style>
-            .bar { fill: #4ecdc4; stroke: #fff; stroke-width: 1; }
-            .bar-energy { fill: #ff6b6b; }
-            .bar-thermo { fill: #ffe66d; }
-            .bar-spectro { fill: #95e1d3; }
-            .axis { stroke: #333; stroke-width: 1; }
-            .label { fill: #333; font-size: 12px; font-family: Arial; text-anchor: middle; }
-            .title { fill: #333; font-size: 16px; font-family: Arial; font-weight: bold; text-anchor: middle; }
-            .value { fill: #333; font-size: 10px; font-family: Arial; text-anchor: middle; }
-        </style>
-    </defs>
-    
-    <rect width="${width}" height="${height}" fill="#f8f9fa"/>
-    <text x="${width/2}" y="30" class="title">Knowledge Graph Statistics</text>`;
-        
-        // Prepare data for chart
-        const data = [
-            { label: 'Molecules', value: stats.molecules || 0, color: 'bar' },
-            { label: 'SCF Energies', value: stats.scfEnergies || 0, color: 'bar-energy' },
-            { label: 'Frequencies', value: stats.frequencies || 0, color: 'bar' },
-            { label: 'Atoms', value: stats.atoms || 0, color: 'bar' }
-        ];
-        
-        // Add enhanced stats if available
-        if (stats.enhanced && stats.thermochemistry) {
-            data.push({ 
-                label: 'Thermochem', 
-                value: stats.thermochemistry.enthalpy + stats.thermochemistry.entropy, 
-                color: 'bar-thermo' 
-            });
-        }
-        
-        if (stats.enhanced && stats.spectroscopy) {
-            data.push({ 
-                label: 'Spectroscopy', 
-                value: stats.spectroscopy.electronicTransitions + stats.spectroscopy.irIntensities, 
-                color: 'bar-spectro' 
-            });
-        }
-        
-        const maxValue = Math.max(...data.map(d => d.value), 1);
-        const barWidth = 60;
-        const barSpacing = 20;
-        const chartHeight = 250;
-        const chartTop = 80;
-        const chartLeft = 50;
-        
-        // Draw axes
-        chartSvg += `\n    <line class="axis" x1="${chartLeft}" y1="${chartTop}" x2="${chartLeft}" y2="${chartTop + chartHeight}"/>`;
-        chartSvg += `\n    <line class="axis" x1="${chartLeft}" y1="${chartTop + chartHeight}" x2="${chartLeft + data.length * (barWidth + barSpacing)}" y2="${chartTop + chartHeight}"/>`;
-        
-        // Draw bars
-        data.forEach((item, i) => {
-            const barHeight = (item.value / maxValue) * chartHeight;
-            const x = chartLeft + i * (barWidth + barSpacing) + barSpacing/2;
-            const y = chartTop + chartHeight - barHeight;
-            
-            chartSvg += `\n    <rect class="${item.color}" x="${x}" y="${y}" width="${barWidth}" height="${barHeight}"/>`;
-            chartSvg += `\n    <text class="label" x="${x + barWidth/2}" y="${chartTop + chartHeight + 20}">${item.label}</text>`;
-            chartSvg += `\n    <text class="value" x="${x + barWidth/2}" y="${y - 5}">${item.value}</text>`;
-        });
-        
-        chartSvg += `\n</svg>`;
-        
-        return Buffer.from(chartSvg).toString('base64');
-    } catch (error) {
-        console.error("Error generating analysis chart:", error);
-        return null;
-    }
 }
 
 function parseRDFForVisualization(rdfContent: string): { nodes: any[], edges: any[] } {

@@ -68,35 +68,35 @@ export const exportKnowledgeDataAction: Action = {
             if (exportResult.error) {
                 responseText = `❌ Error exporting data: ${exportResult.error}`;
             } else {
-                responseText = `📤 **Knowledge Graph Data Export Complete**
+                responseText = `📤 Knowledge Graph Data Export Complete
 
-📋 **Export Summary**:
-- 📁 **Format**: ${exportResult.format.toUpperCase()}
-- 📊 **Records Exported**: ${exportResult.recordCount}
-- 📦 **File Size**: ${exportResult.fileSize}
-- 🕒 **Export Time**: ${new Date().toLocaleString()}
+📋 Export Summary:
+- 📁 Format: ${exportResult.format.toUpperCase()}
+- 📊 Records Exported: ${exportResult.recordCount}
+- 📦 File Size: ${exportResult.fileSize}
+- 🕒 Export Time: ${new Date().toLocaleString()}
 
-📁 **Generated Files**:`;
+📁 Generated Files:`;
 
                 exportResult.files.forEach((file: any) => {
-                    responseText += `\n- 📄 **${file.type}**: \`${file.path}\` (${file.size})`;
+                    responseText += `\n- 📄 ${file.type}: \`${file.path}\` (${file.size})`;
                 });
 
-                responseText += `\n\n📈 **Exported Data Categories**:
-- 🧪 **Molecules**: ${exportResult.categories.molecules} entries
-- ⚡ **Energies**: ${exportResult.categories.energies} values
-- 🎵 **Frequencies**: ${exportResult.categories.frequencies} data points
-- ⚛️ **Atoms**: ${exportResult.categories.atoms} atomic data
-- 🔗 **Relationships**: ${exportResult.categories.relationships} connections
+                responseText += `\n\n📈 Exported Data Categories:
+- 🧪 Molecules: ${exportResult.categories.molecules} entries
+- ⚡ Energies: ${exportResult.categories.energies} values
+- 🎵 Frequencies: ${exportResult.categories.frequencies} data points
+- ⚛️ Atoms: ${exportResult.categories.atoms} atomic data
+- 🔗 Relationships: ${exportResult.categories.relationships} connections
 
-💡 **Usage Instructions**:
+💡 Usage Instructions:
 - Import CSV files into Excel, R, or Python pandas
 - Use JSON files for web applications or APIs
 - Load RDF files into semantic web tools
 - Open Excel files for immediate analysis`;
 
                 if (exportResult.metadata) {
-                    responseText += `\n\n📝 **Metadata File**: \`${exportResult.metadata}\``;
+                    responseText += `\n\n📝 Metadata File: \`${exportResult.metadata}\``;
                 }
             }
 
