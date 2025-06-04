@@ -8,21 +8,16 @@ import {
   HandlerCallback,
 } from "@elizaos/core";
 
-interface QueryGaussianKnowledgeContent extends Content {
-  text: string;
-}
+import {
+  QueryGaussianKnowledgeContent,
+  GaussianKnowledgeService,
+  QUERY_KEYWORDS,
+  ACTION_SIMILES,
+} from "../types/queryGaussianKnowledge";
 
 export const queryGaussianKnowledgeAction: Action = {
   name: "QUERY_GAUSSIAN_KNOWLEDGE",
-  similes: [
-    "ASK_ABOUT_CALCULATIONS",
-    "SEARCH_QUANTUM_DATA",
-    "FIND_MOLECULAR_DATA",
-    "GET_CALCULATION_INFO",
-    "SHOW_KNOWLEDGE_STATS",
-    "WHAT_CALCULATIONS",
-    "HOW_MANY_MOLECULES",
-  ],
+  similes: [...ACTION_SIMILES],
   validate: async (
     runtime: IAgentRuntime,
     message: Memory,
@@ -30,63 +25,38 @@ export const queryGaussianKnowledgeAction: Action = {
     const content = message.content as QueryGaussianKnowledgeContent;
     const text = content.text?.toLowerCase() || "";
 
-    // Keywords that indicate a query about the knowledge graph
-    const queryKeywords = [
-      "how many",
-      "what",
-      "show me",
-      "find",
-      "search",
-      "tell me about",
-      "energy",
-      "energies",
-      "molecule",
-      "molecules",
-      "calculation",
-      "calculations",
-      "homo",
-      "lumo",
-      "gap",
-      "frequency",
-      "frequencies",
-      "atom",
-      "atoms",
-      "scf",
-      "dft",
-      "basis",
-      "method",
-      "gaussian",
-      "quantum",
-      "knowledge graph",
-      "stats",
-      "statistics",
-      "summary",
-    ];
-
-    return queryKeywords.some((keyword) => text.includes(keyword));
+    // Check if the message contains any of the query keywords
+    return QUERY_KEYWORDS.some((keyword) => text.includes(keyword));
   },
   description:
     "Query the accumulated Gaussian knowledge graph to answer questions about calculations, molecules, and energies",
   handler: async (
     runtime: IAgentRuntime,
     message: Memory,
-    state?: State,
-    options?: { [key: string]: unknown },
+    state: State,
+    options: { [key: string]: unknown } = {},
     callback?: HandlerCallback,
-  ): Promise<unknown> => {
+  ): Promise<boolean> => {
     try {
       const content = message.content as QueryGaussianKnowledgeContent;
       const query = content.text || "";
 
-      // Get the knowledge service - using any since it's a custom service
-      const knowledgeService = runtime.services.get("gaussian-knowledge" as any) as any;
+      // Get the knowledge service
+      const knowledgeService = runtime.getService("gaussian-knowledge") as unknown as GaussianKnowledgeService | null;
       if (!knowledgeService) {
         const errorMessage = "❌ Gaussian knowledge service is not available. Please ensure the knowledge graph is initialized.";
+        console.log("📤 Error Response:", errorMessage);
         
-        return {
-          text: errorMessage,
-          success: false
-        };
+        // Send error response via callback
+        if (callback) {
+          await callback({
+            text: errorMessage,
+            thought: "The Gaussian knowledge service is not available, so I cannot process this query.",
+            actions: ["QUERY_GAUSSIAN_KNOWLEDGE"],
+          });
+        }
+        
+        return false;
       }
 
       let responseText = "";
@@ -100,6 +70,7 @@ export const queryGaussianKnowledgeAction: Action = {
         // Get overall statistics
         const stats = await knowledgeService.getKnowledgeGraphStats();
         console.log("🔧 DEBUG: Stats received:", JSON.stringify(stats, null, 2));
+        
         if (stats.error) {
           responseText = `❌ Error getting knowledge graph stats: ${stats.error}`;
         } else {
@@ -149,21 +120,44 @@ export const queryGaussianKnowledgeAction: Action = {
         }
       }
 
-      console.log("🔧 DEBUG: Returning response text:", responseText.substring(0, 100) + "...");
+      console.log("🔧 DEBUG: Response generated:", responseText.substring(0, 100) + "...");
+      console.log("📤 Response:", responseText);
+      console.log("callback?", callback);
+      console.log("message.roomId", message.roomId);
+      console.log("responseText", responseText);
 
-      return {
-        text: responseText,
-        success: true
-      };
+      
+     
+     
+
+      // Send the response via callback
+      if (callback) {
+        await callback({
+          role: "assistant",                     // <- mandatory
+          roomId: message.roomId,                // or conversationId, whichever your client uses
+          content: {
+            markdown: responseText,              // or text:
+            action: "QUERY_GAUSSIAN_KNOWLEDGE",
+          },
+        });
+      }
+
+      return true; // ✅ success
     } catch (error) {
       console.error("Error in queryGaussianKnowledgeAction:", error);
-
       const errorText = `❌ Error processing your query: ${error instanceof Error ? error.message : "Unknown error"}`;
-
-      return {
-        text: errorText,
-        success: false
-      };
+      console.log("📤 Error Response:", errorText);
+      
+      // Send error response via callback
+      if (callback) {
+        await callback({
+          text: errorText,
+          thought: "An unexpected error occurred while processing the Gaussian knowledge query.",
+          actions: ["QUERY_GAUSSIAN_KNOWLEDGE"],
+        });
+      }
+      
+      return false; // ❌ failure
     }
   },
   examples: [
@@ -201,7 +195,7 @@ export const queryGaussianKnowledgeAction: Action = {
     [
       {
         content: {
-          text: "What SCF energies do we have?",
+        text: "What SCF energies do we have?",
         },
       },
       {

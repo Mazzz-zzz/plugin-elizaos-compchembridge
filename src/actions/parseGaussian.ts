@@ -5,7 +5,7 @@ import {
   Memory,
   State,
   type Action,
-} from "../types/eliza-core.js";
+} from "@elizaos/core";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import * as path from "path";
