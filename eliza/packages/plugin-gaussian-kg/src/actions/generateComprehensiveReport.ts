@@ -262,19 +262,13 @@ async function generateReportChartsWithPython(analysisData: any, stats: any, tim
         const publicChartsDir = path.join(process.cwd(), "../client/public/charts", `report-${timestamp}`);
         await fs.mkdir(publicChartsDir, { recursive: true });
         
-        // Prepare data for Python plotting
-        const plotData = {
-            stats,
-            energyData: analysisData.energyData,
-            homoLumoData: analysisData.homoLumoData,
-            frequencyData: analysisData.frequencyData
-        };
-        
-        // Generate overview statistics chart
+        // Generate overview statistics chart (aggregated data)
         try {
             const overviewPath = path.join(visualizationsDir, "overview.png");
             const publicOverviewPath = path.join(publicChartsDir, "overview.png");
-            await callPythonPlotting("overview", plotData, overviewPath);
+            
+            const overviewData = { stats };
+            await callPythonPlotting("overview", overviewData, overviewPath);
             
             // Copy to public directory for web serving
             await fs.copyFile(overviewPath, publicOverviewPath);
@@ -289,54 +283,59 @@ async function generateReportChartsWithPython(analysisData: any, stats: any, tim
             console.error("Error generating overview chart:", error);
         }
         
-        // Generate energy trends if available
-        if (analysisData.energyData && analysisData.energyData.length > 1) {
+        // Generate file-separated energy chart if available
+        if (analysisData.fileData && Object.keys(analysisData.fileData).length > 0) {
             try {
-                const trendPath = path.join(visualizationsDir, "energy-trends.png");
-                const publicTrendPath = path.join(publicChartsDir, "energy-trends.png");
-                await callPythonPlotting("energy_trend", plotData, trendPath);
+                const energyPath = path.join(visualizationsDir, "file-separated-energy.png");
+                const publicEnergyPath = path.join(publicChartsDir, "file-separated-energy.png");
+                await callPythonPlotting("file_separated_energy", analysisData.fileData, energyPath);
                 
                 // Copy to public directory for web serving
-                await fs.copyFile(trendPath, publicTrendPath);
+                await fs.copyFile(energyPath, publicEnergyPath);
                 
                 charts.push({
-                    title: "Energy Trends Analysis",
-                    path: path.relative(process.cwd(), trendPath),
-                    publicUrl: `/charts/report-${timestamp}/energy-trends.png`,
-                    filename: "energy-trends.png"
+                    title: "SCF Energy Trends by File",
+                    path: path.relative(process.cwd(), energyPath),
+                    publicUrl: `/charts/report-${timestamp}/file-separated-energy.png`,
+                    filename: "file-separated-energy.png"
                 });
             } catch (error) {
-                console.error("Error generating energy trend chart:", error);
+                console.error("Error generating file-separated energy chart:", error);
             }
         }
         
-        // Generate HOMO-LUMO comparison if available
-        if (analysisData.homoLumoData && analysisData.homoLumoData.length > 0) {
+        // Generate file-separated HOMO-LUMO gaps if available
+        const hasGapData = Object.values(analysisData.fileData || {}).some((fileData: any) => 
+            fileData.homoLumoData && fileData.homoLumoData.length > 0);
+        
+        if (hasGapData) {
             try {
-                const comparisonPath = path.join(visualizationsDir, "molecular-comparison.png");
-                const publicComparisonPath = path.join(publicChartsDir, "molecular-comparison.png");
-                await callPythonPlotting("molecular_comparison", plotData, comparisonPath);
+                const gapPath = path.join(visualizationsDir, "file-separated-gaps.png");
+                const publicGapPath = path.join(publicChartsDir, "file-separated-gaps.png");
+                await callPythonPlotting("file_separated_gaps", analysisData.fileData, gapPath);
                 
                 // Copy to public directory for web serving
-                await fs.copyFile(comparisonPath, publicComparisonPath);
+                await fs.copyFile(gapPath, publicGapPath);
                 
                 charts.push({
-                    title: "Molecular Electronic Properties",
-                    path: path.relative(process.cwd(), comparisonPath),
-                    publicUrl: `/charts/report-${timestamp}/molecular-comparison.png`,
-                    filename: "molecular-comparison.png"
+                    title: "HOMO-LUMO Energy Gaps by File",
+                    path: path.relative(process.cwd(), gapPath),
+                    publicUrl: `/charts/report-${timestamp}/file-separated-gaps.png`,
+                    filename: "file-separated-gaps.png"
                 });
             } catch (error) {
-                console.error("Error generating molecular comparison chart:", error);
+                console.error("Error generating file-separated gaps chart:", error);
             }
         }
         
-        // Generate enhanced cclib summary if available
+        // Generate enhanced cclib summary if available (aggregated)
         if (stats.enhanced) {
             try {
                 const enhancedPath = path.join(visualizationsDir, "enhanced-properties.png");
                 const publicEnhancedPath = path.join(publicChartsDir, "enhanced-properties.png");
-                await callPythonPlotting("enhanced_properties", plotData, enhancedPath);
+                
+                const enhancedData = { stats };
+                await callPythonPlotting("enhanced_properties", enhancedData, enhancedPath);
                 
                 // Copy to public directory for web serving
                 await fs.copyFile(enhancedPath, publicEnhancedPath);
@@ -352,24 +351,61 @@ async function generateReportChartsWithPython(analysisData: any, stats: any, tim
             }
         }
         
-        // Generate frequency analysis if available
-        if (analysisData.frequencyData && analysisData.frequencyData.length > 0) {
+        // Generate file-separated frequency analysis if available
+        const hasFreqData = Object.values(analysisData.fileData || {}).some((fileData: any) => 
+            fileData.frequencyData && fileData.frequencyData.length > 0);
+        
+        if (hasFreqData) {
             try {
-                const frequencyPath = path.join(visualizationsDir, "frequency-analysis.png");
-                const publicFrequencyPath = path.join(publicChartsDir, "frequency-analysis.png");
-                await callPythonPlotting("frequency_analysis", plotData, frequencyPath);
+                const frequencyPath = path.join(visualizationsDir, "file-separated-frequency.png");
+                const publicFrequencyPath = path.join(publicChartsDir, "file-separated-frequency.png");
+                await callPythonPlotting("file_separated_frequency", analysisData.fileData, frequencyPath);
                 
                 // Copy to public directory for web serving
                 await fs.copyFile(frequencyPath, publicFrequencyPath);
                 
                 charts.push({
-                    title: "Vibrational Frequency Analysis",
+                    title: "Vibrational Frequency Analysis by File",
                     path: path.relative(process.cwd(), frequencyPath),
-                    publicUrl: `/charts/report-${timestamp}/frequency-analysis.png`,
-                    filename: "frequency-analysis.png"
+                    publicUrl: `/charts/report-${timestamp}/file-separated-frequency.png`,
+                    filename: "file-separated-frequency.png"
                 });
             } catch (error) {
-                console.error("Error generating frequency analysis chart:", error);
+                console.error("Error generating file-separated frequency chart:", error);
+            }
+        }
+        
+        // If no file-separated data is available, create a single-file detailed analysis
+        if (!analysisData.fileData || Object.keys(analysisData.fileData).length === 0) {
+            console.log("No file-separated data available, creating aggregate analysis...");
+            
+            // Fallback: create a single pseudo-file with all data for detailed analysis
+            if (analysisData.energyData?.length > 0 || analysisData.homoLumoData?.length > 0 || analysisData.frequencyData?.length > 0) {
+                try {
+                    const singleFileData = {
+                        "aggregate_analysis": {
+                            energyData: analysisData.energyData || [],
+                            homoLumoData: analysisData.homoLumoData || [],
+                            frequencyData: analysisData.frequencyData || []
+                        }
+                    };
+                    
+                    const detailPath = path.join(visualizationsDir, "detailed-analysis.png");
+                    const publicDetailPath = path.join(publicChartsDir, "detailed-analysis.png");
+                    await callPythonPlotting("all_files", singleFileData, detailPath);
+                    
+                    // Copy to public directory for web serving
+                    await fs.copyFile(detailPath, publicDetailPath);
+                    
+                    charts.push({
+                        title: "Detailed Molecular Analysis",
+                        path: path.relative(process.cwd(), detailPath),
+                        publicUrl: `/charts/report-${timestamp}/detailed-analysis.png`,
+                        filename: "detailed-analysis.png"
+                    });
+                } catch (error) {
+                    console.error("Error generating detailed analysis chart:", error);
+                }
             }
         }
         
@@ -391,16 +427,120 @@ async function performComprehensiveAnalysis(knowledgeService: any): Promise<any>
         console.warn("Could not read knowledge graph file, using empty analysis data");
     }
     
-    // Extract data for analysis
+    // Extract file-separated data
+    const fileData = extractFileSeparatedData(rdfContent);
+    
+    // Also extract legacy aggregated data for backward compatibility
     const energyData = extractEnergyData(rdfContent);
     const homoLumoData = extractHOMOLUMOData(rdfContent);
     const frequencyData = extractFrequencyData(rdfContent);
     
     return {
+        fileData,
         energyData,
         homoLumoData,
         frequencyData
     };
+}
+
+function extractFileSeparatedData(rdfContent: string): Record<string, any> {
+    const fileData: Record<string, any> = {};
+    const lines = rdfContent.split('\n');
+    
+    let currentFile = '';
+    let currentMolecule = '';
+    
+    for (const line of lines) {
+        // Extract source file information - look for file references
+        const fileMatch = line.match(/ex:(\w+)(?:_log|_out|_gjf)?/); // Match typical Gaussian file patterns
+        if (fileMatch && line.includes('QuantumCalculation')) {
+            currentFile = fileMatch[1] + '.log'; // Assume .log extension
+            currentMolecule = fileMatch[1];
+            
+            // Initialize file data structure
+            if (!fileData[currentFile]) {
+                fileData[currentFile] = {
+                    energyData: [],
+                    homoLumoData: [],
+                    frequencyData: []
+                };
+            }
+        }
+        
+        // Extract data for current file
+        if (currentFile) {
+            // Extract SCF energies
+            const energyMatch = line.match(/ontocompchem:hasSCFEnergy\s+(-?\d+\.?\d*)/);
+            if (energyMatch) {
+                fileData[currentFile].energyData.push(parseFloat(energyMatch[1]));
+            }
+            
+            // Extract HOMO-LUMO gaps
+            const gapMatch = line.match(/ontocompchem:hasHOMOLUMOGap\s+(-?\d+\.?\d*)/);
+            if (gapMatch) {
+                fileData[currentFile].homoLumoData.push({
+                    gap: parseFloat(gapMatch[1]),
+                    molecule: currentMolecule
+                });
+            }
+            
+            // Extract frequencies
+            const freqMatch = line.match(/ontocompchem:hasFrequency\s+(-?\d+\.?\d*)/);
+            if (freqMatch) {
+                fileData[currentFile].frequencyData.push(parseFloat(freqMatch[1]));
+            }
+        }
+    }
+    
+    // If no file-separated data was found, try to infer from molecule names
+    if (Object.keys(fileData).length === 0) {
+        console.log("No file markers found, attempting to separate by molecule names...");
+        
+        const moleculeData: Record<string, any> = {};
+        let currentMol = '';
+        
+        for (const line of lines) {
+            const molMatch = line.match(/ex:(\w+)\s+a\s+ontocompchem:QuantumCalculation/);
+            if (molMatch) {
+                currentMol = molMatch[1];
+                const fileName = currentMol + '.log';
+                
+                if (!moleculeData[fileName]) {
+                    moleculeData[fileName] = {
+                        energyData: [],
+                        homoLumoData: [],
+                        frequencyData: []
+                    };
+                }
+            }
+            
+            if (currentMol) {
+                const fileName = currentMol + '.log';
+                
+                const energyMatch = line.match(/ontocompchem:hasSCFEnergy\s+(-?\d+\.?\d*)/);
+                if (energyMatch && moleculeData[fileName]) {
+                    moleculeData[fileName].energyData.push(parseFloat(energyMatch[1]));
+                }
+                
+                const gapMatch = line.match(/ontocompchem:hasHOMOLUMOGap\s+(-?\d+\.?\d*)/);
+                if (gapMatch && moleculeData[fileName]) {
+                    moleculeData[fileName].homoLumoData.push({
+                        gap: parseFloat(gapMatch[1]),
+                        molecule: currentMol
+                    });
+                }
+                
+                const freqMatch = line.match(/ontocompchem:hasFrequency\s+(-?\d+\.?\d*)/);
+                if (freqMatch && moleculeData[fileName]) {
+                    moleculeData[fileName].frequencyData.push(parseFloat(freqMatch[1]));
+                }
+            }
+        }
+        
+        return moleculeData;
+    }
+    
+    return fileData;
 }
 
 function extractEnergyData(rdfContent: string): number[] {

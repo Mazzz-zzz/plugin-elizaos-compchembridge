@@ -1,14 +1,33 @@
 #!/usr/bin/env python3
 """
 Gaussian Analysis Plotting Module
-Generates matplotlib visualizations for comprehensive reports
+=========================================
+
+**Purpose**
+-----------
+Generates matplotlib visualizations for comprehensive reports, with proper 
+file-based data separation for practicing chemists. Each source file's data
+is kept separate throughout the analysis pipeline.
+
+Key features:
+* **File-separated analysis** – each source file analyzed independently
+* **SCF energy trends** – per-file convergence analysis
+* **HOMO-LUMO gaps** – per-file stability/reactivity screening  
+* **Vibrational frequency spectra** – per-file minima / transition state validation
+* **Enhanced properties** – per-file cclib-based advanced analysis
+* **Aggregate summaries** – optional cross-file comparisons
+
+Supports both base64 output for web embedding and file output for reports.
 """
+
+from __future__ import annotations
 
 import sys
 import json
 import os
 import base64
 from pathlib import Path
+from typing import Dict, List, Optional, Union, Any, Tuple
 import matplotlib
 matplotlib.use('Agg')  # Use non-interactive backend
 import matplotlib.pyplot as plt
@@ -16,11 +35,232 @@ import numpy as np
 from io import BytesIO
 import re
 
-# Set matplotlib style
-plt.style.use('seaborn-v0_8' if 'seaborn-v0_8' in plt.style.available else 'default')
+# ---------------------------------------------------------------------------
+#  Styling - lazy load to avoid seaborn dependency issues
+# ---------------------------------------------------------------------------
 
-def create_overview_chart(stats, output_path=None):
-    """Generate overview statistics pie chart"""
+def _ensure_style():
+    """Lazy-load matplotlib style to avoid import issues"""
+    if 'seaborn-v0_8' in plt.style.available:
+        plt.style.use('seaborn-v0_8')
+    else:
+        plt.style.use('default')
+
+_ensure_style()
+
+# ---------------------------------------------------------------------------
+#  Core helper functions
+# ---------------------------------------------------------------------------
+
+def figure_to_base64(fig) -> str:
+    """Convert matplotlib figure to base64 string"""
+    buffer = BytesIO()
+    fig.savefig(buffer, format='png', dpi=300, bbox_inches='tight')
+    buffer.seek(0)
+    
+    # Convert to base64
+    image_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+    plt.close(fig)
+    return image_base64
+
+def create_empty_chart(message: str) -> str:
+    """Create an empty chart with a message"""
+    fig, ax = plt.subplots(figsize=(8, 6))
+    ax.text(0.5, 0.5, message, ha='center', va='center', 
+           fontsize=14, color='gray', transform=ax.transAxes)
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    ax.axis('off')
+    plt.tight_layout()
+    return figure_to_base64(fig)
+
+def _save_or_encode(fig, output_path: Optional[str] = None) -> str:
+    """Save figure to file or return base64 encoded string"""
+    if output_path:
+        fig.savefig(output_path, dpi=300, bbox_inches='tight')
+        plt.close(fig)
+        return output_path
+    else:
+        return figure_to_base64(fig)
+
+# ---------------------------------------------------------------------------
+#  File-separated plotting functions (main interface)
+# ---------------------------------------------------------------------------
+
+def create_file_separated_energy_chart(file_data: Dict[str, List[float]], output_path: Optional[str] = None) -> str:
+    """Generate energy trends chart with proper file separation"""
+    
+    if not file_data:
+        return create_empty_chart("No energy data available")
+    
+    # Filter files with sufficient data
+    valid_files = {fname: data for fname, data in file_data.items() 
+                   if data and len(data) >= 2}
+    
+    if not valid_files:
+        return create_empty_chart("Insufficient energy data for trends")
+    
+    # Create subplots - one per file
+    n_files = len(valid_files)
+    if n_files == 1:
+        fig, ax = plt.subplots(figsize=(10, 6))
+        axes = [ax]
+    else:
+        cols = min(2, n_files)
+        rows = (n_files + cols - 1) // cols
+        fig, axes = plt.subplots(rows, cols, figsize=(12, 4 * rows))
+        if n_files > 1:
+            axes = axes.flatten() if isinstance(axes, np.ndarray) else [axes]
+    
+    fig.suptitle('SCF Energy Trends by File', fontsize=16, fontweight='bold')
+    
+    for i, (fname, energies) in enumerate(valid_files.items()):
+        ax = axes[i]
+        stem = Path(fname).stem
+        
+        x = range(len(energies))
+        ax.plot(x, energies, 'o-', color='#4ecdc4', linewidth=1.8, markersize=4)
+        
+        ax.set_title(f'{stem}', fontsize=12, fontweight='bold')
+        ax.set_xlabel('Step')
+        ax.set_ylabel('Energy (Ha)')
+        ax.grid(True, alpha=0.3)
+        
+        # Add convergence info
+        if len(energies) > 1:
+            final_change = abs(energies[-1] - energies[-2])
+            ax.text(0.02, 0.98, f'Final Δ: {final_change:.2e}', 
+                   transform=ax.transAxes, va='top',
+                   bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.8))
+    
+    # Hide unused subplots
+    for i in range(n_files, len(axes)):
+        axes[i].set_visible(False)
+    
+    plt.tight_layout()
+    return _save_or_encode(fig, output_path)
+
+def create_file_separated_gap_chart(file_data: Dict[str, List[Dict[str, Any]]], output_path: Optional[str] = None) -> str:
+    """Generate HOMO-LUMO gaps chart with proper file separation"""
+    
+    if not file_data:
+        return create_empty_chart("No HOMO-LUMO data available")
+    
+    # Prepare data per file
+    valid_files = {fname: [item['gap'] for item in data] 
+                   for fname, data in file_data.items() if data}
+    
+    if not valid_files:
+        return create_empty_chart("No valid HOMO-LUMO data")
+    
+    fig, ax = plt.subplots(figsize=(max(8, len(valid_files) * 1.5), 6))
+    
+    # Create grouped bar chart
+    file_names = list(valid_files.keys())
+    file_stems = [Path(fname).stem for fname in file_names]
+    
+    x_pos = 0
+    bar_width = 0.8
+    colors = plt.cm.Set3(np.linspace(0, 1, len(file_names)))
+    
+    for i, (fname, gaps) in enumerate(valid_files.items()):
+        stem = Path(fname).stem
+        avg_gap = sum(gaps) / len(gaps) if gaps else 0
+        
+        bar = ax.bar(x_pos, avg_gap, bar_width, alpha=0.8, 
+                    color=colors[i], label=stem, edgecolor='black', linewidth=0.5)
+        
+        # Add value label
+        ax.text(x_pos, avg_gap + 0.1, f'{avg_gap:.2f} eV', 
+               ha='center', va='bottom', fontsize=9, fontweight='bold')
+        
+        # Add range info if multiple values
+        if len(gaps) > 1:
+            min_gap, max_gap = min(gaps), max(gaps)
+            ax.plot([x_pos, x_pos], [min_gap, max_gap], 'k-', alpha=0.6, linewidth=2)
+            ax.plot([x_pos-0.1, x_pos+0.1], [min_gap, min_gap], 'k-', alpha=0.6, linewidth=1)
+            ax.plot([x_pos-0.1, x_pos+0.1], [max_gap, max_gap], 'k-', alpha=0.6, linewidth=1)
+        
+        x_pos += 1
+    
+    ax.set_title('HOMO-LUMO Energy Gaps by File', fontsize=14, fontweight='bold')
+    ax.set_xlabel('Files')
+    ax.set_ylabel('Energy Gap (eV)')
+    ax.set_xticks(range(len(file_stems)))
+    ax.set_xticklabels(file_stems, rotation=45, ha='right')
+    ax.grid(True, alpha=0.3, axis='y')
+    
+    # Add reactivity threshold line
+    ax.axhline(y=4.0, color='red', linestyle='--', alpha=0.7, 
+               label='Reactivity threshold (~4 eV)')
+    ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    
+    plt.tight_layout()
+    return _save_or_encode(fig, output_path)
+
+def create_file_separated_frequency_chart(file_data: Dict[str, List[float]], output_path: Optional[str] = None) -> str:
+    """Generate frequency analysis chart with proper file separation"""
+    
+    if not file_data:
+        return create_empty_chart("No frequency data available")
+    
+    valid_files = {fname: data for fname, data in file_data.items() if data}
+    
+    if not valid_files:
+        return create_empty_chart("No valid frequency data")
+    
+    n_files = len(valid_files)
+    if n_files == 1:
+        fig, ax = plt.subplots(figsize=(10, 6))
+        axes = [ax]
+    else:
+        cols = min(2, n_files)
+        rows = (n_files + cols - 1) // cols
+        fig, axes = plt.subplots(rows, cols, figsize=(12, 4 * rows))
+        if n_files > 1:
+            axes = axes.flatten() if isinstance(axes, np.ndarray) else [axes]
+    
+    fig.suptitle('Vibrational Frequency Analysis by File', fontsize=16, fontweight='bold')
+    
+    for i, (fname, freqs) in enumerate(valid_files.items()):
+        ax = axes[i]
+        stem = Path(fname).stem
+        
+        real_freqs = [f for f in freqs if f >= 0]
+        imag_freqs = [abs(f) for f in freqs if f < 0]
+        
+        # Plot histogram
+        if real_freqs:
+            ax.hist(real_freqs, bins=max(10, len(real_freqs)//3), alpha=0.7, 
+                   color='#4ecdc4', label=f'Real ({len(real_freqs)})')
+        
+        if imag_freqs:
+            ax.hist(imag_freqs, bins=max(5, len(imag_freqs)//2), alpha=0.7, 
+                   color='#ff6b6b', label=f'Imaginary ({len(imag_freqs)})')
+        
+        ax.axvline(0, color='red', linestyle='--', alpha=0.6)
+        ax.set_xlabel('Frequency (cm⁻¹)')
+        ax.set_ylabel('Count')
+        ax.set_title(f'{stem}', fontsize=12, fontweight='bold')
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+        
+        # Add interpretation
+        interpretation = "Minimum" if not imag_freqs else f"Saddle point ({len(imag_freqs)} imag)"
+        ax.text(0.98, 0.98, interpretation, transform=ax.transAxes, 
+               ha='right', va='top', fontsize=9,
+               bbox=dict(boxstyle='round,pad=0.3', 
+                        facecolor='lightgreen' if not imag_freqs else 'orange', alpha=0.7))
+    
+    # Hide unused subplots
+    for i in range(n_files, len(axes)):
+        axes[i].set_visible(False)
+    
+    plt.tight_layout()
+    return _save_or_encode(fig, output_path)
+
+def create_overview_chart(stats: Dict[str, Any], output_path: Optional[str] = None) -> str:
+    """Generate overview statistics chart (aggregated summary)"""
     
     # Prepare data
     data = [
@@ -39,7 +279,7 @@ def create_overview_chart(stats, output_path=None):
     
     # Create figure
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
-    fig.suptitle('Knowledge Graph Data Overview', fontsize=16, fontweight='bold')
+    fig.suptitle('Knowledge Graph Data Overview (All Files)', fontsize=16, fontweight='bold')
     
     # Pie chart
     labels = [item['label'] for item in data]
@@ -57,7 +297,7 @@ def create_overview_chart(stats, output_path=None):
         ['Total Items', sum(values)],
         ['Parser', stats.get('parser', 'basic')],
         ['Enhanced', 'Yes' if stats.get('enhanced', False) else 'No'],
-        ['Files', stats.get('processedFiles', 0)]
+        ['Files Processed', stats.get('processedFiles', 0)]
     ]
     
     table = ax2.table(cellText=stats_data[1:], colLabels=stats_data[0],
@@ -77,103 +317,10 @@ def create_overview_chart(stats, output_path=None):
                 cell.set_facecolor('#f8f9fa')
     
     plt.tight_layout()
-    
-    if output_path:
-        plt.savefig(output_path, dpi=300, bbox_inches='tight')
-        plt.close()
-        return output_path
-    else:
-        return figure_to_base64(fig)
+    return _save_or_encode(fig, output_path)
 
-def create_energy_trend_chart(energy_data, output_path=None):
-    """Generate energy trends line chart"""
-    
-    if not energy_data or len(energy_data) < 2:
-        return create_empty_chart("Insufficient energy data for trends")
-    
-    fig, ax = plt.subplots(figsize=(10, 6))
-    
-    x = range(len(energy_data))
-    ax.plot(x, energy_data, 'o-', color='#4ecdc4', linewidth=2, markersize=6, 
-            markerfacecolor='#ff6b6b', markeredgecolor='white', markeredgewidth=1)
-    
-    ax.set_title('SCF Energy Trends', fontsize=14, fontweight='bold', pad=20)
-    ax.set_xlabel('Calculation Index')
-    ax.set_ylabel('Energy (Hartree)')
-    ax.grid(True, alpha=0.3)
-    
-    # Add statistics text box
-    min_energy = min(energy_data)
-    max_energy = max(energy_data)
-    avg_energy = sum(energy_data) / len(energy_data)
-    
-    stats_text = f'Min: {min_energy:.6f}\nMax: {max_energy:.6f}\nAvg: {avg_energy:.6f}\nRange: {max_energy - min_energy:.6f}'
-    ax.text(0.02, 0.98, stats_text, transform=ax.transAxes, verticalalignment='top',
-            bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
-    
-    plt.tight_layout()
-    
-    if output_path:
-        plt.savefig(output_path, dpi=300, bbox_inches='tight')
-        plt.close()
-        return output_path
-    else:
-        return figure_to_base64(fig)
-
-def create_molecular_comparison_chart(homo_lumo_data, output_path=None):
-    """Generate HOMO-LUMO comparison chart"""
-    
-    if not homo_lumo_data or len(homo_lumo_data) < 1:
-        return create_empty_chart("No HOMO-LUMO data available")
-    
-    # Limit to first 10 molecules for readability
-    display_data = homo_lumo_data[:10]
-    
-    fig, ax = plt.subplots(figsize=(12, 6))
-    
-    x = range(len(display_data))
-    gaps = [item['gap'] for item in display_data]
-    molecules = [item.get('molecule', f'Mol {i+1}') for i, item in enumerate(display_data)]
-    
-    # Create bars
-    bars = ax.bar(x, gaps, color='#4ecdc4', alpha=0.7, edgecolor='#2c3e50', linewidth=1)
-    
-    # Add value labels on bars
-    for i, (bar, gap) in enumerate(zip(bars, gaps)):
-        height = bar.get_height()
-        ax.text(bar.get_x() + bar.get_width()/2., height + 0.01,
-                f'{gap:.2f} eV', ha='center', va='bottom', fontsize=9)
-    
-    ax.set_title('HOMO-LUMO Energy Gaps', fontsize=14, fontweight='bold', pad=20)
-    ax.set_xlabel('Molecular Systems')
-    ax.set_ylabel('Energy Gap (eV)')
-    ax.set_xticks(x)
-    ax.set_xticklabels(molecules, rotation=45, ha='right')
-    ax.grid(True, alpha=0.3, axis='y')
-    
-    # Add average line
-    avg_gap = sum(gaps) / len(gaps)
-    ax.axhline(y=avg_gap, color='#ff6b6b', linestyle='--', alpha=0.8, 
-               label=f'Average: {avg_gap:.2f} eV')
-    ax.legend()
-    
-    # Add reactivity interpretation
-    reactivity = "Stable (large gaps)" if avg_gap > 4 else "Potentially reactive (small gaps)"
-    ax.text(0.98, 0.98, f'Electronic character: {reactivity}', 
-            transform=ax.transAxes, ha='right', va='top',
-            bbox=dict(boxstyle='round', facecolor='yellow', alpha=0.7))
-    
-    plt.tight_layout()
-    
-    if output_path:
-        plt.savefig(output_path, dpi=300, bbox_inches='tight')
-        plt.close()
-        return output_path
-    else:
-        return figure_to_base64(fig)
-
-def create_enhanced_properties_chart(stats, output_path=None):
-    """Generate enhanced cclib properties summary chart"""
+def create_enhanced_properties_chart(stats: Dict[str, Any], output_path: Optional[str] = None) -> str:
+    """Generate enhanced cclib properties summary chart (aggregated)"""
     
     categories = [
         {
@@ -205,11 +352,11 @@ def create_enhanced_properties_chart(stats, output_path=None):
     ]
     
     fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(12, 8))
-    fig.suptitle('Enhanced cclib Properties Summary', fontsize=16, fontweight='bold')
+    fig.suptitle('Enhanced cclib Properties Summary (All Files)', fontsize=16, fontweight='bold')
     
     axes = [ax1, ax2, ax3, ax4]
     
-    for i, (ax, category) in enumerate(zip(axes, categories)):
+    for ax, category in zip(axes, categories):
         # Create circular progress-like visualization
         count = category['count']
         max_possible = 50  # Approximate max for scaling
@@ -235,97 +382,176 @@ def create_enhanced_properties_chart(stats, output_path=None):
         ax.set_title(category['name'], fontsize=12, fontweight='bold', pad=10)
     
     plt.tight_layout()
-    
-    if output_path:
-        plt.savefig(output_path, dpi=300, bbox_inches='tight')
-        plt.close()
-        return output_path
-    else:
-        return figure_to_base64(fig)
+    return _save_or_encode(fig, output_path)
 
-def create_frequency_analysis_chart(frequency_data, output_path=None):
-    """Generate vibrational frequency analysis chart"""
-    
-    if not frequency_data:
-        return create_empty_chart("No frequency data available")
-    
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
-    fig.suptitle('Vibrational Frequency Analysis', fontsize=16, fontweight='bold')
-    
-    # Histogram of frequencies
-    real_freqs = [f for f in frequency_data if f >= 0]
-    imaginary_freqs = [abs(f) for f in frequency_data if f < 0]
-    
-    # Plot real frequencies
-    if real_freqs:
-        ax1.hist(real_freqs, bins=20, alpha=0.7, color='#4ecdc4', 
-                label=f'Real frequencies ({len(real_freqs)})')
-    
-    # Plot imaginary frequencies
-    if imaginary_freqs:
-        ax1.hist(imaginary_freqs, bins=10, alpha=0.7, color='#ff6b6b',
-                label=f'Imaginary frequencies ({len(imaginary_freqs)})')
-    
-    ax1.set_xlabel('Frequency (cm⁻¹)')
-    ax1.set_ylabel('Count')
-    ax1.set_title('Frequency Distribution')
-    ax1.legend()
-    ax1.grid(True, alpha=0.3)
-    
-    # Frequency range plot
-    sorted_freqs = sorted(frequency_data)
-    ax2.plot(range(len(sorted_freqs)), sorted_freqs, 'o-', 
-            color='#4ecdc4', markersize=4, linewidth=1)
-    
-    # Highlight imaginary frequencies
-    if imaginary_freqs:
-        imag_indices = [i for i, f in enumerate(sorted_freqs) if f < 0]
-        imag_values = [sorted_freqs[i] for i in imag_indices]
-        ax2.scatter(imag_indices, imag_values, color='#ff6b6b', s=50, 
-                   label='Imaginary', zorder=5)
-    
-    ax2.axhline(y=0, color='red', linestyle='--', alpha=0.5)
-    ax2.set_xlabel('Mode Index')
-    ax2.set_ylabel('Frequency (cm⁻¹)')
-    ax2.set_title('Frequency Spectrum')
-    ax2.grid(True, alpha=0.3)
-    
-    if imaginary_freqs:
-        ax2.legend()
-    
-    plt.tight_layout()
-    
-    if output_path:
-        plt.savefig(output_path, dpi=300, bbox_inches='tight')
-        plt.close()
-        return output_path
-    else:
-        return figure_to_base64(fig)
+# ---------------------------------------------------------------------------
+#  Individual file plotting (detailed analysis)
+# ---------------------------------------------------------------------------
 
-def create_empty_chart(message):
-    """Create an empty chart with a message"""
-    fig, ax = plt.subplots(figsize=(8, 6))
-    ax.text(0.5, 0.5, message, ha='center', va='center', 
-           fontsize=14, color='gray', transform=ax.transAxes)
-    ax.set_xlim(0, 1)
-    ax.set_ylim(0, 1)
-    ax.axis('off')
-    plt.tight_layout()
-    return figure_to_base64(fig)
-
-def figure_to_base64(fig):
-    """Convert matplotlib figure to base64 string"""
-    buffer = BytesIO()
-    fig.savefig(buffer, format='png', dpi=300, bbox_inches='tight')
-    buffer.seek(0)
+def plot_single_file(filename: str, data: Dict[str, List], output_dir: Optional[Path] = None) -> Dict[str, Optional[str]]:
+    """
+    Generate detailed plots for a single file
     
-    # Convert to base64
-    image_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
-    plt.close(fig)
-    return image_base64
+    Args:
+        filename: Name of the source file
+        data: Dictionary containing energyData, homoLumoData, frequencyData
+        output_dir: Optional directory to save plots, otherwise returns base64
+        
+    Returns:
+        Dictionary with plot results for energy, gap, and frequency charts
+    """
+    stem = Path(filename).stem.replace(" ", "_")
+    
+    def _save_plot(fig, suffix: str) -> Optional[str]:
+        if fig is None:
+            return None
+        if output_dir:
+            output_dir.mkdir(parents=True, exist_ok=True)
+            path = output_dir / f"{stem}{suffix}.png"
+            fig.savefig(path, dpi=300, bbox_inches='tight')
+            plt.close(fig)
+            return str(path)
+        else:
+            return figure_to_base64(fig)
 
-def parse_rdf_for_plotting(rdf_content):
-    """Parse RDF content to extract data for plotting"""
+    # Generate individual charts
+    energy_fig = None
+    if data.get('energyData') and len(data['energyData']) >= 2:
+        fig, ax = plt.subplots(figsize=(8, 5))
+        energies = data['energyData']
+        ax.plot(range(len(energies)), energies, 'o-', linewidth=1.8, markersize=6)
+        ax.set_xlabel('Step')
+        ax.set_ylabel('Energy (Ha)')
+        ax.set_title(f'SCF Energy Trend – {stem}')
+        ax.grid(alpha=0.3)
+        
+        # Add convergence analysis
+        if len(energies) > 1:
+            changes = [abs(energies[i] - energies[i-1]) for i in range(1, len(energies))]
+            final_change = changes[-1] if changes else 0
+            avg_change = sum(changes) / len(changes) if changes else 0
+            
+            ax.text(0.02, 0.98, f'Final Δ: {final_change:.2e}\nAvg Δ: {avg_change:.2e}', 
+                   transform=ax.transAxes, va='top',
+                   bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
+        
+        energy_fig = fig
+    
+    gap_fig = None
+    homo_lumo_gaps = [item['gap'] for item in data.get('homoLumoData', [])]
+    if homo_lumo_gaps:
+        fig, ax = plt.subplots(figsize=(8, 5))
+        bars = ax.bar(range(len(homo_lumo_gaps)), homo_lumo_gaps, alpha=0.8)
+        ax.set_xticks([])
+        ax.set_ylabel('Gap (eV)')
+        ax.set_title(f'HOMO–LUMO Gap – {stem}')
+        
+        for bar, gap in zip(bars, homo_lumo_gaps):
+            ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.02,
+                    f'{gap:.2f}', ha='center', va='bottom', fontsize=10)
+        
+        # Add interpretation
+        avg_gap = sum(homo_lumo_gaps) / len(homo_lumo_gaps)
+        interpretation = "Stable" if avg_gap > 4 else "Reactive"
+        ax.text(0.98, 0.98, f'{interpretation}\n(avg: {avg_gap:.2f} eV)', 
+               transform=ax.transAxes, ha='right', va='top',
+               bbox=dict(boxstyle='round', 
+                        facecolor='lightgreen' if avg_gap > 4 else 'orange', alpha=0.7))
+        
+        gap_fig = fig
+    
+    freq_fig = None
+    if data.get('frequencyData'):
+        freqs = data['frequencyData']
+        real = [f for f in freqs if f >= 0]
+        imag = [abs(f) for f in freqs if f < 0]
+        
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+        
+        # Histogram
+        if real:
+            ax1.hist(real, bins=max(10, len(real)//3), alpha=0.7, label=f'Real ({len(real)})')
+        if imag:
+            ax1.hist(imag, bins=max(5, len(imag)//2), alpha=0.7, label=f'Imaginary ({len(imag)})')
+        
+        ax1.axvline(0, ls='--', color='red', alpha=0.6)
+        ax1.set_xlabel('Frequency (cm⁻¹)')
+        ax1.set_ylabel('Count')
+        ax1.set_title('Frequency Distribution')
+        ax1.legend()
+        ax1.grid(alpha=0.3)
+        
+        # Spectrum plot
+        sorted_freqs = sorted(freqs)
+        ax2.plot(range(len(sorted_freqs)), sorted_freqs, 'o-', markersize=3)
+        ax2.axhline(0, ls='--', color='red', alpha=0.6)
+        ax2.set_xlabel('Mode Index')
+        ax2.set_ylabel('Frequency (cm⁻¹)')
+        ax2.set_title('Full Spectrum')
+        ax2.grid(alpha=0.3)
+        
+        # Highlight imaginary frequencies
+        if imag:
+            imag_indices = [i for i, f in enumerate(sorted_freqs) if f < 0]
+            imag_values = [sorted_freqs[i] for i in imag_indices]
+            ax2.scatter(imag_indices, imag_values, color='red', s=30, zorder=5)
+        
+        fig.suptitle(f'Vibrational Analysis – {stem}')
+        freq_fig = fig
+    
+    return {
+        'energy': _save_plot(energy_fig, '_energy'),
+        'gap': _save_plot(gap_fig, '_gap'),
+        'frequency': _save_plot(freq_fig, '_freq'),
+    }
+
+def plot_all_files(dataset: Dict[str, Dict[str, List]], output_dir: Optional[Path] = None) -> Dict[str, Dict[str, Optional[str]]]:
+    """
+    Generate detailed plots for all files in dataset
+    
+    Args:
+        dataset: Dictionary mapping filenames to their data
+        output_dir: Optional directory to save plots
+        
+    Returns:
+        Dictionary mapping filenames to their plot results
+    """
+    results = {}
+    for filename, file_data in dataset.items():
+        results[filename] = plot_single_file(filename, file_data, output_dir)
+    return results
+
+# ---------------------------------------------------------------------------
+#  Data processing helpers
+# ---------------------------------------------------------------------------
+
+def separate_data_by_file(dataset: Dict[str, Dict[str, List]]) -> Tuple[Dict[str, List[float]], Dict[str, List[Dict[str, Any]]], Dict[str, List[float]]]:
+    """
+    Separate combined dataset into file-organized data structures
+    
+    Returns:
+        Tuple of (energy_by_file, homo_lumo_by_file, frequency_by_file)
+    """
+    energy_by_file = {}
+    homo_lumo_by_file = {}
+    frequency_by_file = {}
+    
+    for filename, data in dataset.items():
+        if 'energyData' in data:
+            energy_by_file[filename] = data['energyData']
+        if 'homoLumoData' in data:
+            homo_lumo_by_file[filename] = data['homoLumoData']
+        if 'frequencyData' in data:
+            frequency_by_file[filename] = data['frequencyData']
+    
+    return energy_by_file, homo_lumo_by_file, frequency_by_file
+
+# ---------------------------------------------------------------------------
+#  Legacy parsing and main function
+# ---------------------------------------------------------------------------
+
+def parse_rdf_for_plotting(rdf_content: str) -> Dict[str, List]:
+    """Parse RDF content to extract data for plotting (legacy function)"""
     
     energy_data = []
     homo_lumo_data = []
@@ -368,7 +594,14 @@ def main():
     """Main function for command line usage"""
     if len(sys.argv) < 3:
         print("Usage: python plot_gaussian_analysis.py <chart_type> <data_json> [output_path]")
-        print("Chart types: overview, energy_trend, molecular_comparison, enhanced_properties, frequency_analysis")
+        print("Chart types:")
+        print("  - overview: aggregated statistics overview")
+        print("  - enhanced_properties: aggregated cclib properties") 
+        print("  - file_separated_energy: energy trends by file")
+        print("  - file_separated_gaps: HOMO-LUMO gaps by file")
+        print("  - file_separated_frequency: frequency analysis by file")
+        print("  - single_file: detailed analysis for individual files")
+        print("  - all_files: batch processing for all files")
         sys.exit(1)
     
     chart_type = sys.argv[1]
@@ -383,24 +616,49 @@ def main():
     
     result = None
     
-    if chart_type == "overview":
-        result = create_overview_chart(data.get('stats', {}), output_path)
-    elif chart_type == "energy_trend":
-        result = create_energy_trend_chart(data.get('energyData', []), output_path)
-    elif chart_type == "molecular_comparison":
-        result = create_molecular_comparison_chart(data.get('homoLumoData', []), output_path)
-    elif chart_type == "enhanced_properties":
-        result = create_enhanced_properties_chart(data.get('stats', {}), output_path)
-    elif chart_type == "frequency_analysis":
-        result = create_frequency_analysis_chart(data.get('frequencyData', []), output_path)
-    else:
-        print(f"Unknown chart type: {chart_type}", file=sys.stderr)
+    try:
+        if chart_type == "overview":
+            result = create_overview_chart(data.get('stats', {}), output_path)
+        elif chart_type == "enhanced_properties":
+            result = create_enhanced_properties_chart(data.get('stats', {}), output_path)
+        elif chart_type == "file_separated_energy":
+            # Expect data to be organized by file
+            energy_by_file, _, _ = separate_data_by_file(data)
+            result = create_file_separated_energy_chart(energy_by_file, output_path)
+        elif chart_type == "file_separated_gaps":
+            _, homo_lumo_by_file, _ = separate_data_by_file(data)
+            result = create_file_separated_gap_chart(homo_lumo_by_file, output_path)
+        elif chart_type == "file_separated_frequency":
+            _, _, frequency_by_file = separate_data_by_file(data)
+            result = create_file_separated_frequency_chart(frequency_by_file, output_path)
+        elif chart_type == "single_file":
+            # Handle single file detailed analysis
+            if len(data) != 1:
+                print("Error: single_file mode requires exactly one file in the dataset", file=sys.stderr)
+                sys.exit(1)
+            filename, file_data = next(iter(data.items()))
+            output_dir = Path(output_path) if output_path else None
+            result = plot_single_file(filename, file_data, output_dir)
+            result = json.dumps(result)
+        elif chart_type == "all_files":
+            # Handle batch processing
+            output_dir = Path(output_path) if output_path else None
+            result = plot_all_files(data, output_dir)
+            result = json.dumps(result)
+        else:
+            print(f"Unknown chart type: {chart_type}", file=sys.stderr)
+            print("Run with no arguments to see available chart types.", file=sys.stderr)
+            sys.exit(1)
+    except Exception as e:
+        print(f"Error generating chart: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
     
-    if output_path:
+    if output_path and chart_type not in ["single_file", "all_files"]:
         print(f"Chart saved to: {result}")
     else:
-        # Output base64 for direct embedding
+        # Output base64 for direct embedding or JSON for file-based results
         print(result)
 
 if __name__ == "__main__":
