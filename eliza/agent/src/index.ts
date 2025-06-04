@@ -384,11 +384,11 @@ async function handlePluginImporting(plugins: string[]) {
                             .replace("@elizaos-plugins/plugin-", "")
                             .replace(/-./g, (x) => x[1].toUpperCase()) +
                         "Plugin"; // Assumes plugin function is camelCased with Plugin suffix
-                    if (!importedPlugin[functionName] && !importedPlugin.default) {
+                    if (!importedPlugin[functionName]) {
                       elizaLogger.warn(plugin, 'does not have an default export or', functionName)
                     }
                     return {...(
-                        importedPlugin.default || importedPlugin[functionName]
+                        importedPlugin[functionName]
                     ), npmName: plugin };
                 } catch (importError) {
                     console.error(

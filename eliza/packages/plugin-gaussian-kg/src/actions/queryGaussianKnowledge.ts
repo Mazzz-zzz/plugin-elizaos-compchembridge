@@ -21,24 +21,30 @@ export const queryGaussianKnowledgeAction: Action = {
         "GET_CALCULATION_INFO",
         "SHOW_KNOWLEDGE_STATS",
         "WHAT_CALCULATIONS",
-        "HOW_MANY_MOLECULES"
+        "HOW_MANY_MOLECULES",
+        "THERMOCHEMICAL_DATA",
+        "SPECTROSCOPIC_DATA",
+        "BASIS_SET_INFO"
     ],
     validate: async (runtime: IAgentRuntime, message: Memory): Promise<boolean> => {
         const content = message.content as QueryGaussianKnowledgeContent;
         const text = content.text?.toLowerCase() || '';
         
-        // Keywords that indicate a query about the knowledge graph
+        // Enhanced keywords for cclib data
         const queryKeywords = [
             'how many', 'what', 'show me', 'find', 'search', 'tell me about',
             'energy', 'energies', 'molecule', 'molecules', 'calculation', 'calculations',
             'homo', 'lumo', 'gap', 'frequency', 'frequencies', 'atom', 'atoms',
             'scf', 'dft', 'basis', 'method', 'gaussian', 'quantum', 'knowledge graph',
-            'stats', 'statistics', 'summary'
+            'stats', 'statistics', 'summary', 'thermochemical', 'thermochemistry',
+            'enthalpy', 'entropy', 'free energy', 'zpve', 'transition', 'transitions',
+            'spectroscopy', 'spectroscopic', 'ir', 'raman', 'oscillator', 'optimization',
+            'converged', 'molecular orbital', 'orbitals', 'basis functions'
         ];
         
         return queryKeywords.some(keyword => text.includes(keyword));
     },
-    description: "Query the accumulated Gaussian knowledge graph to answer questions about calculations, molecules, and energies",
+    description: "Query the comprehensive Gaussian knowledge graph with cclib data to answer questions about calculations, molecules, energies, thermochemistry, and spectroscopic properties",
     handler: async (
         runtime: IAgentRuntime,
         message: Memory,
@@ -50,7 +56,7 @@ export const queryGaussianKnowledgeAction: Action = {
             const content = message.content as QueryGaussianKnowledgeContent;
             const query = content.text || "";
             
-            // Get the knowledge service - using any since it's a custom service
+            // Get the knowledge service
             const knowledgeService = runtime.services.get("gaussian-knowledge" as any) as any;
             if (!knowledgeService) {
                 const errorMemory = await runtime.messageManager.createMemory({
@@ -71,27 +77,70 @@ export const queryGaussianKnowledgeAction: Action = {
 
             let responseText = "";
             
-            // Handle different types of queries
+            // Handle different types of queries with enhanced cclib support
             if (query.toLowerCase().includes('stats') || query.toLowerCase().includes('summary')) {
-                // Get overall statistics
+                // Get overall statistics including cclib enhancements
                 const stats = await knowledgeService.getKnowledgeGraphStats();
                 if (stats.error) {
                     responseText = `❌ Error getting knowledge graph stats: ${stats.error}`;
                 } else {
-                    responseText = `📊 **Gaussian Knowledge Graph Statistics**
+                    responseText = `📊 **Enhanced Gaussian Knowledge Graph Statistics**
 
-📁 **Storage**: ${(stats.fileSize / 1024).toFixed(1)} KB
-🧮 **Total RDF Triples**: ${stats.totalTriples}
-🧪 **Molecules Analyzed**: ${stats.molecules}
-⚡ **SCF Energies**: ${stats.scfEnergies}
-🔗 **HOMO-LUMO Gaps**: ${stats.homoLumoGaps}
-🎵 **Vibrational Frequencies**: ${stats.frequencies}
-⚛️  **Total Atoms**: ${stats.atoms}
-📄 **Files Processed**: ${stats.processedFiles}
-🕒 **Last Updated**: ${new Date(stats.lastModified).toLocaleString()}`;
+📁 **Storage & Parser**:
+- 📦 **File Size**: ${(stats.fileSize / 1024).toFixed(1)} KB
+- 🔬 **Parser**: ${stats.parser || 'basic'} ${stats.enhanced ? '(cclib enhanced)' : ''}
+- 🧮 **Total RDF Triples**: ${stats.totalTriples}
+
+🧪 **Molecular Data**:
+- 🧬 **Molecules Analyzed**: ${stats.molecules}
+- ⚡ **SCF Energies**: ${stats.scfEnergies}
+- 🔗 **HOMO-LUMO Gaps**: ${stats.homoLumoGaps}
+- 🎵 **Vibrational Frequencies**: ${stats.frequencies}
+- ⚛️ **Total Atoms**: ${stats.atoms}
+
+📄 **Files & Updates**:
+- 📁 **Files Processed**: ${stats.processedFiles}
+- 🕒 **Last Updated**: ${new Date(stats.lastModified).toLocaleString()}`;
+
+                    // Add enhanced cclib statistics if available
+                    if (stats.enhanced && stats.thermochemistry) {
+                        responseText += `\n\n🌡️ **Thermochemical Properties** (cclib):
+- 🔥 **Enthalpy Calculations**: ${stats.thermochemistry.enthalpy}
+- 📊 **Entropy Calculations**: ${stats.thermochemistry.entropy}
+- ⚡ **Free Energy Data**: ${stats.thermochemistry.freeEnergy}
+- 🔬 **ZPVE Corrections**: ${stats.thermochemistry.zpve}`;
+                    }
+
+                    if (stats.enhanced && stats.spectroscopy) {
+                        responseText += `\n\n🌈 **Spectroscopic Data** (cclib):
+- 🌟 **Electronic Transitions**: ${stats.spectroscopy.electronicTransitions}
+- 📊 **IR Intensities**: ${stats.spectroscopy.irIntensities}
+- 🔍 **Raman Activities**: ${stats.spectroscopy.ramanActivities}
+- 💫 **Oscillator Strengths**: ${stats.spectroscopy.oscillatorStrengths}`;
+                    }
+
+                    if (stats.enhanced && stats.basisSet) {
+                        responseText += `\n\n🧮 **Basis Set Information** (cclib):
+- 🌐 **Molecular Orbitals**: ${stats.basisSet.molecularOrbitals}
+- 🎯 **Basis Functions**: ${stats.basisSet.basisFunctions}
+- ⚛️ **Atomic Orbitals**: ${stats.basisSet.atomicOrbitals}`;
+                    }
+
+                    if (stats.enhanced && stats.optimization) {
+                        responseText += `\n\n🎯 **Optimization Status** (cclib):
+- ✅ **Converged**: ${stats.optimization.convergedCalculations}
+- ❌ **Failed**: ${stats.optimization.failedOptimizations}`;
+                    }
+
+                    if (stats.enhanced && stats.molecularProperties) {
+                        responseText += `\n\n🧬 **Molecular Properties** (cclib):
+- 📋 **Molecular Formulas**: ${stats.molecularProperties.molecularFormulas}
+- ⚡ **System Charges**: ${stats.molecularProperties.charges}
+- 🎭 **Multiplicities**: ${stats.molecularProperties.multiplicities}`;
+                    }
                 }
             } else {
-                // Query the knowledge graph
+                // Query the knowledge graph with enhanced patterns
                 const result = await knowledgeService.queryKnowledgeGraph(query);
                 
                 if (result.error) {
@@ -103,21 +152,60 @@ export const queryGaussianKnowledgeAction: Action = {
 - 🧪 **${result.stats.molecules}** molecules analyzed
 - ⚡ **${result.stats.scfEnergies}** SCF energies
 - 🎵 **${result.stats.frequencies}** vibrational frequencies  
-- ⚛️  **${result.stats.atoms}** atoms total`;
+- ⚛️ **${result.stats.atoms}** atoms total
+- 🔬 **Parser**: ${result.enhanced ? 'cclib (enhanced)' : 'basic'}`;
+
+                    // Add enhanced statistics if available
+                    if (result.enhanced && result.stats.thermochemistry) {
+                        responseText += `\n- 🌡️ **${result.stats.thermochemistry.enthalpy}** enthalpy values
+- 📊 **${result.stats.thermochemistry.entropy}** entropy values
+- ⚡ **${result.stats.thermochemistry.freeEnergy}** free energy values`;
+                    }
+
+                    if (result.enhanced && result.stats.spectroscopy) {
+                        responseText += `\n- 🌟 **${result.stats.spectroscopy.transitions}** electronic transitions
+- 📊 **${result.stats.spectroscopy.irIntensities}** IR intensities
+- 🔍 **${result.stats.spectroscopy.ramanActivities}** Raman activities`;
+                    }
 
                     if (result.relevantData && result.relevantData.length > 0) {
                         responseText += `\n\n🎯 **Relevant Data Found**:`;
                         result.relevantData.forEach((line: string, index: number) => {
                             if (line.trim() && !line.startsWith('#')) {
-                                responseText += `\n${index + 1}. ${line.trim()}`;
+                                // Enhanced parsing for better display
+                                let displayLine = line.trim();
+                                
+                                // Format common patterns more readably
+                                displayLine = displayLine.replace(/ontocompchem:hasSCFEnergy\s+(-?\d+\.?\d*)/, 'SCF Energy: $1 Hartree');
+                                displayLine = displayLine.replace(/ontocompchem:hasHOMOLUMOGap\s+(-?\d+\.?\d*)/, 'HOMO-LUMO Gap: $1 eV');
+                                displayLine = displayLine.replace(/ontocompchem:hasFrequency\s+(-?\d+\.?\d*)/, 'Frequency: $1 cm⁻¹');
+                                displayLine = displayLine.replace(/ontocompchem:hasEnthalpy\s+(-?\d+\.?\d*)/, 'Enthalpy: $1 Hartree');
+                                displayLine = displayLine.replace(/ontocompchem:hasEntropy\s+(-?\d+\.?\d*)/, 'Entropy: $1 Hartree/K');
+                                displayLine = displayLine.replace(/ontocompchem:hasFreeEnergy\s+(-?\d+\.?\d*)/, 'Free Energy: $1 Hartree');
+                                displayLine = displayLine.replace(/ontocompchem:hasIRIntensity\s+(-?\d+\.?\d*)/, 'IR Intensity: $1 km/mol');
+                                displayLine = displayLine.replace(/ontocompchem:hasRamanActivity\s+(-?\d+\.?\d*)/, 'Raman Activity: $1 Ų/Da');
+                                
+                                responseText += `\n${index + 1}. ${displayLine}`;
                             }
                         });
                     } else {
-                        responseText += `\n\n💡 No specific matches found. Try queries like:
+                        responseText += `\n\n💡 **No specific matches found**. Try queries like:`;
+                        
+                        if (result.enhanced) {
+                            responseText += `
+- "How many molecules with thermochemical data?"
+- "Show me electronic transitions"
+- "What IR intensities are available?"
+- "Tell me about optimization status"
+- "What basis set information do we have?"
+- "Show me Raman activities"`;
+                        } else {
+                            responseText += `
 - "How many molecules?"
 - "Show me SCF energies"
 - "What about HOMO-LUMO gaps?"
 - "Find frequency data"`;
+                        }
                     }
                 }
             }
@@ -177,7 +265,7 @@ export const queryGaussianKnowledgeAction: Action = {
             {
                 user: "{{agent}}",
                 content: {
-                    text: "🔍 Query Results for: \"How many molecules are in the knowledge graph?\"\n\n📊 Current Knowledge Base:\n- 🧪 **1** molecules analyzed\n- ⚡ **1** SCF energies\n- 🎵 **39** vibrational frequencies\n- ⚛️  **15** atoms total",
+                    text: "🔍 Query Results for: \"How many molecules are in the knowledge graph?\"\n\n📊 Current Knowledge Base:\n- 🧪 **3** molecules analyzed\n- ⚡ **3** SCF energies\n- 🎵 **87** vibrational frequencies\n- ⚛️ **45** atoms total\n- 🔬 **Parser**: cclib (enhanced)",
                 },
             },
         ],
@@ -185,13 +273,13 @@ export const queryGaussianKnowledgeAction: Action = {
             {
                 user: "{{user1}}",
                 content: {
-                    text: "Show me the knowledge graph stats"
+                    text: "Show me thermochemical data"
                 },
             },
             {
                 user: "{{agent}}",
                 content: {
-                    text: "I'll get the current knowledge graph statistics.",
+                    text: "I'll search for thermochemical properties in the knowledge graph.",
                     action: "QUERY_GAUSSIAN_KNOWLEDGE",
                 },
             },
@@ -200,13 +288,13 @@ export const queryGaussianKnowledgeAction: Action = {
             {
                 user: "{{user1}}",
                 content: {
-                    text: "What SCF energies do we have?"
+                    text: "What electronic transitions do we have?"
                 },
             },
             {
                 user: "{{agent}}",
                 content: {
-                    text: "I'll search for SCF energy data in the knowledge graph.",
+                    text: "Searching for electronic transition data and spectroscopic properties.",
                     action: "QUERY_GAUSSIAN_KNOWLEDGE",
                 },
             },
@@ -215,13 +303,13 @@ export const queryGaussianKnowledgeAction: Action = {
             {
                 user: "{{user1}}",
                 content: {
-                    text: "Tell me about HOMO-LUMO gaps"
+                    text: "Tell me about basis set information"
                 },
             },
             {
                 user: "{{agent}}",
                 content: {
-                    text: "I'll look for HOMO-LUMO gap information in our quantum chemistry database.",
+                    text: "I'll look for molecular orbital and basis function data in the knowledge graph.",
                     action: "QUERY_GAUSSIAN_KNOWLEDGE",
                 },
             },
