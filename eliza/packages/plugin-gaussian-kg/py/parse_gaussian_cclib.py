@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import numpy as np
 from datetime import datetime
+import re
 
 try:
     import cclib
@@ -133,21 +134,26 @@ def generate_rdf_from_cclib(data, metadata=None):
         return f"# Error: {data['error']}\n"
     
     filename = data['metadata']['filename']
+    # Get clean filename: remove extension and any prefixes/special chars
     base_name = os.path.splitext(filename)[0]
+    # Remove any prefixes like calc_, calculation_, comp_, etc
+    base_name = re.sub(r'^(calc_|calculation_|comp_|gaussian_|opt_|freq_)', '', base_name, flags=re.IGNORECASE)
+    # Clean up any remaining special characters and ensure valid identifier
+    base_name = re.sub(r'[^a-zA-Z0-9_-]', '_', base_name)
     
     # RDF prefixes and header
     rdf_content = f"""@prefix cheminf: <http://semanticscience.org/resource/> .
 @prefix dcterms: <http://purl.org/dc/terms/> .
-@prefix ex: <https://example.org/gaussian#> .
+@prefix ex: <https://example.org/gaussian#{base_name}/> .
 @prefix ontocompchem: <http://www.theworldavatar.com/ontology/ontocompchem/> .
 @prefix prov: <http://www.w3.org/ns/prov#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 @prefix units: <http://www.ontology-of-units-of-measure.org/resource/om-2/> .
 
-# Gaussian calculation data parsed with cclib v{data['metadata']['cclib_version']}
+# Data for molecule: {base_name}
+# Source file: {filename}
 # Generated: {data['metadata']['parsed_at']}
-# Source: {filename}
 
 ex:{base_name} a ontocompchem:QuantumCalculation ;
     dcterms:source "{filename}" ;
@@ -174,28 +180,32 @@ ex:{base_name} a ontocompchem:QuantumCalculation ;
     if 'scfenergies' in data:
         for i, energy in enumerate(data['scfenergies']):
             energy_hartree = energy / 27.211  # Convert eV to Hartree
-            rdf_content += f"ex:{base_name} ontocompchem:hasSCFEnergy {energy_hartree:.8f} .\n"
-            rdf_content += f"ex:{base_name} ontocompchem:hasSCFEnergyEV {energy:.6f} .\n"
+            rdf_content += f"ex:{base_name}/scf_{i+1} a ontocompchem:SCFEnergy ;\n"
+            rdf_content += f"    ontocompchem:hasValue {energy_hartree:.8f} ;\n"
+            rdf_content += f"    ontocompchem:hasValueEV {energy:.6f} ;\n"
+            rdf_content += f"    ontocompchem:belongsTo ex:{base_name} .\n"
     
     # HOMO-LUMO gaps
     if 'homo_lumo_gaps' in data:
-        for gap_data in data['homo_lumo_gaps']:
-            rdf_content += f"ex:{base_name} ontocompchem:hasHOMOEnergy {gap_data['homo_energy_ev']:.6f} .\n"
-            rdf_content += f"ex:{base_name} ontocompchem:hasLUMOEnergy {gap_data['lumo_energy_ev']:.6f} .\n"
-            rdf_content += f"ex:{base_name} ontocompchem:hasHOMOLUMOGap {gap_data['gap_ev']:.6f} .\n"
+        for i, gap_data in enumerate(data['homo_lumo_gaps']):
+            rdf_content += f"ex:{base_name}/gap_{i+1} a ontocompchem:HOMOLUMOGap ;\n"
+            rdf_content += f"    ontocompchem:hasHOMOEnergy {gap_data['homo_energy_ev']:.6f} ;\n"
+            rdf_content += f"    ontocompchem:hasLUMOEnergy {gap_data['lumo_energy_ev']:.6f} ;\n"
+            rdf_content += f"    ontocompchem:hasGapValue {gap_data['gap_ev']:.6f} ;\n"
+            rdf_content += f"    ontocompchem:belongsTo ex:{base_name} .\n"
     
-    # Vibrational frequencies (basic)
+    # Vibrational frequencies
     if 'vibfreqs' in data:
         for i, freq in enumerate(data['vibfreqs']):
-            freq_id = f"{base_name}_freq_{i+1}"
+            freq_id = f"{base_name}/freq_{i+1}"
             rdf_content += f"ex:{freq_id} a ontocompchem:VibrationalFrequency ;\n"
-            rdf_content += f"    ontocompchem:hasFrequency {freq:.2f} ;\n"
+            rdf_content += f"    ontocompchem:hasValue {freq:.2f} ;\n"
             rdf_content += f"    ontocompchem:belongsTo ex:{base_name} .\n"
     
     # Atoms and coordinates
     if 'atomnos' in data and 'final_geometry' in data:
         for i, (atomic_num, coords) in enumerate(zip(data['atomnos'], data['final_geometry'])):
-            atom_id = f"{base_name}_atom_{i+1}"
+            atom_id = f"{base_name}/atom_{i+1}"
             element = data.get('atomsymbols', [str(atomic_num)])[i] if i < len(data.get('atomsymbols', [])) else str(atomic_num)
             
             rdf_content += f"ex:{atom_id} a cheminf:Atom ;\n"
@@ -206,27 +216,7 @@ ex:{base_name} a ontocompchem:QuantumCalculation ;
             rdf_content += f"    cheminf:hasZCoordinate {coords[2]:.6f} ;\n"
             rdf_content += f"    cheminf:belongsTo ex:{base_name} .\n"
     
-    # Molecular orbitals summary
-    if 'nmo' in data:
-        rdf_content += f"ex:{base_name} ontocompchem:hasNumberOfMOs {data['nmo']} .\n"
-    
-    if 'nbasis' in data:
-        rdf_content += f"ex:{base_name} ontocompchem:hasNumberOfBasisFunctions {data['nbasis']} .\n"
-    
-    # Basis set information
-    if 'aonames' in data:
-        rdf_content += f"ex:{base_name} ontocompchem:hasAOCount {len(data['aonames'])} .\n"
-    
-    # Geometry optimization status
-    if 'optdone' in data:
-        rdf_content += f"ex:{base_name} ontocompchem:hasOptimizationConverged {str(data['optdone']).lower()} .\n"
-    
-    # Additional metadata
-    if 'calculation_metadata' in data:
-        for key, value in data['calculation_metadata'].items():
-            if isinstance(value, (str, int, float)):
-                rdf_content += f"ex:{base_name} ontocompchem:has{key.title()} \"{value}\" .\n"
-    
+    # Add a blank line at the end for better separation
     rdf_content += "\n"
     return rdf_content
 
