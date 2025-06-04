@@ -57,45 +57,19 @@ def extract_cclib_data(filepath):
         # Extract all available cclib attributes
         cclib_attrs = [
             # Basic molecular information
-            'atomnos', 'atomcoords', 'atommasses', 'charge', 'mult', 'natom',
+            'atomnos', 'atomcoords', 'charge', 'mult', 'natom',
             
-            # Electronic structure
-            'scfenergies', 'moenergies', 'mocoeffs', 'homos', 'mosyms',
+            # Core energies
+            'scfenergies',
             
-            # Vibrational data
-            'vibfreqs', 'vibirs', 'vibramans', 'vibdisps', 'vibfconsts', 
-            'vibrmasses', 'vibsyms', 'vibanharms',
+            # Basic vibrational data
+            'vibfreqs',
             
             # Thermochemistry
             'enthalpy', 'entropy', 'freeenergy', 'zpve', 'temperature', 'pressure',
-            
-            # Electronic transitions
-            'etenergies', 'etoscs', 'etdips', 'etveldips', 'etmagdips', 
-            'etrotats', 'etsecs', 'etsyms',
-            
-            # Advanced properties
-            'polarizabilities', 'atomcharges', 'atomspins', 'moments',
-            
-            # Basis set information
-            'aonames', 'aooverlaps', 'atombasis', 'gbasis', 'nbasis', 'nmo',
-            
-            # Geometry optimization
-            'geotargets', 'geovalues', 'grads', 'optdone', 'optstatus',
-            
-            # Coupled cluster and MP corrections
-            'ccenergies', 'mpenergies',
-            
-            # Dispersion corrections
-            'dispersionenergies',
-            
-            # Natural orbitals
-            'nocoeffs', 'nooccnos', 'nsocoeffs', 'nsooccnos',
-            
-            # Scan data
-            'scancoords', 'scanenergies', 'scannames', 'scanparm',
-            
-            # NMR data
-            'nmrtensors', 'nmrcouplingtensors',
+       
+
+
             
             # Other properties
             'rotconsts', 'time', 'transprop', 'coreelectrons', 'hessian'
@@ -210,21 +184,13 @@ ex:{base_name} a ontocompchem:QuantumCalculation ;
             rdf_content += f"ex:{base_name} ontocompchem:hasLUMOEnergy {gap_data['lumo_energy_ev']:.6f} .\n"
             rdf_content += f"ex:{base_name} ontocompchem:hasHOMOLUMOGap {gap_data['gap_ev']:.6f} .\n"
     
-    # Vibrational frequencies
+    # Vibrational frequencies (basic)
     if 'vibfreqs' in data:
         for i, freq in enumerate(data['vibfreqs']):
             freq_id = f"{base_name}_freq_{i+1}"
             rdf_content += f"ex:{freq_id} a ontocompchem:VibrationalFrequency ;\n"
             rdf_content += f"    ontocompchem:hasFrequency {freq:.2f} ;\n"
             rdf_content += f"    ontocompchem:belongsTo ex:{base_name} .\n"
-            
-            # Add IR intensities if available
-            if 'vibirs' in data and i < len(data['vibirs']):
-                rdf_content += f"ex:{freq_id} ontocompchem:hasIRIntensity {data['vibirs'][i]:.4f} .\n"
-            
-            # Add Raman activities if available
-            if 'vibramans' in data and i < len(data['vibramans']):
-                rdf_content += f"ex:{freq_id} ontocompchem:hasRamanActivity {data['vibramans'][i]:.4f} .\n"
     
     # Atoms and coordinates
     if 'atomnos' in data and 'final_geometry' in data:
@@ -239,38 +205,6 @@ ex:{base_name} a ontocompchem:QuantumCalculation ;
             rdf_content += f"    cheminf:hasYCoordinate {coords[1]:.6f} ;\n"
             rdf_content += f"    cheminf:hasZCoordinate {coords[2]:.6f} ;\n"
             rdf_content += f"    cheminf:belongsTo ex:{base_name} .\n"
-            
-            # Add atomic masses if available
-            if 'atommasses' in data and i < len(data['atommasses']):
-                rdf_content += f"ex:{atom_id} cheminf:hasAtomicMass {data['atommasses'][i]:.6f} .\n"
-            
-            # Add atomic charges if available
-            if 'atomcharges' in data:
-                for charge_type, charges in data['atomcharges'].items():
-                    if i < len(charges):
-                        rdf_content += f"ex:{atom_id} ontocompchem:has{charge_type}Charge {charges[i]:.6f} .\n"
-    
-    # Thermochemical properties
-    if 'enthalpy' in data:
-        rdf_content += f"ex:{base_name} ontocompchem:hasEnthalpy {data['enthalpy']:.8f} .\n"
-    
-    if 'entropy' in data:
-        rdf_content += f"ex:{base_name} ontocompchem:hasEntropy {data['entropy']:.8f} .\n"
-    
-    if 'freeenergy' in data:
-        rdf_content += f"ex:{base_name} ontocompchem:hasFreeEnergy {data['freeenergy']:.8f} .\n"
-    
-    if 'zpve' in data:
-        rdf_content += f"ex:{base_name} ontocompchem:hasZPVE {data['zpve']:.8f} .\n"
-    
-    # Electronic transitions
-    if 'etenergies' in data and 'etoscs' in data:
-        for i, (energy, osc_str) in enumerate(zip(data['etenergies'], data['etoscs'])):
-            trans_id = f"{base_name}_transition_{i+1}"
-            rdf_content += f"ex:{trans_id} a ontocompchem:ElectronicTransition ;\n"
-            rdf_content += f"    ontocompchem:hasTransitionEnergy {energy:.2f} ;\n"
-            rdf_content += f"    ontocompchem:hasOscillatorStrength {osc_str:.6f} ;\n"
-            rdf_content += f"    ontocompchem:belongsTo ex:{base_name} .\n"
     
     # Molecular orbitals summary
     if 'nmo' in data:
