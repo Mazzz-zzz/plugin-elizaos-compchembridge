@@ -1,0 +1,35 @@
+[tool.poetry]
+name = "gaussian-kg-parser"
+version = "0.1.0"
+description = "Python parser for Gaussian quantum chemistry logfiles to RDF knowledge graphs"
+authors = ["Bio x AI Hackathon Team"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.8.1"
+cclib = "^1.8"
+rdflib = "^7.0.0"
+pydantic = "^2.5.0"
+numpy = "^1.24.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4.0"
+pytest-cov = "^4.1.0"
+black = "^23.0.0"
+flake8 = "^6.0.0"
+mypy = "^1.7.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 88
+target-version = ['py38']
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true 

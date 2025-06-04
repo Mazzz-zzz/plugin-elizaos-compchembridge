@@ -1,0 +1,109 @@
+{
+  "name": "@mazzz/elizaos-compchembridge",
+  "version": "0.1.1",
+  "description": "ElizaOS plugin for parsing Gaussian 16 quantum chemistry logfiles into a knowledge graph",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "test": "jest",
+    "test:python": "cd py && poetry run pytest",
+    "lint": "eslint src/**/*.ts",
+    "format": "prettier --write src/**/*.ts",
+    "clean": "rm -rf node_modules/.cache"
+  },
+  "keywords": [
+    "eliza",
+    "elizaos",
+    "elizaos-plugin",
+    "plugin",
+    "quantum-chemistry",
+    "gaussian",
+    "knowledge-graph",
+    "rdf",
+    "bioai",
+    "chemistry",
+    "ai",
+    "computational-chemistry",
+    "compchembridge"
+  ],
+  "author": "Bio x AI Hackathon Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mazzz/elizaos-compchembridge.git"
+  },
+  "homepage": "https://github.com/mazzz/elizaos-compchembridge#readme",
+  "bugs": {
+    "url": "https://github.com/mazzz/elizaos-compchembridge/issues"
+  },
+  "agentConfig": {
+    "pluginType": "elizaos:plugin:1.0.0",
+    "pluginParameters": {
+      "GAUSSIAN_PARSER_DEBUG": {
+        "type": "boolean",
+        "description": "Enable debug logging for Gaussian parser",
+        "default": false
+      },
+      "GAUSSIAN_PARSER_PYTHON_PATH": {
+        "type": "string",
+        "description": "Path to Python executable for Gaussian parsing",
+        "default": "python"
+      },
+      "GAUSSIAN_PARSER_MAX_FILE_SIZE": {
+        "type": "string",
+        "description": "Maximum Gaussian file size in MB",
+        "default": "500"
+      }
+    }
+  },
+  "devDependencies": {
+    "@types/jest": "^29.0.0",
+    "@types/node": "^22.15.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "eslint": "^9.0.0",
+    "jest": "^29.0.0",
+    "prettier": "^3.0.0",
+    "ts-jest": "^29.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0",
+    "@elizaos/cli": "latest",
+    "dotenv": "16.4.5",
+    "tsup": "8.4.0",
+    "vitest": "3.1.4"
+  },
+  "dependencies": {
+    "@elizaos/core": "latest",
+    "@elizaos/plugin-knowledge": "^1.0.0",
+    "zod": "3.24.2"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "src",
+    "py",
+    "characters",
+    "README.md",
+    "PLUGIN.md",
+    "assets"
+  ],
+  "engines": {
+    "node": ">=23.0.0"
+  },
+  "topics": [
+    "elizaos-plugin",
+    "elizaos",
+    "quantum-chemistry",
+    "gaussian",
+    "knowledge-graph",
+    "bioai",
+    "chemistry",
+    "ai",
+    "computational-chemistry",
+    "compchembridge",
+    "hackathon"
+  ]
+}
