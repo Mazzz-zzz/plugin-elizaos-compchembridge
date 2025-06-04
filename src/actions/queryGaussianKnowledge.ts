@@ -79,24 +79,14 @@ export const queryGaussianKnowledgeAction: Action = {
       const query = content.text || "";
 
       // Get the knowledge service - using any since it's a custom service
-      const knowledgeService = runtime.services.get(
-        "gaussian-knowledge" as any,
-      ) as any;
+      const knowledgeService = runtime.services.get("gaussian-knowledge" as any) as any;
       if (!knowledgeService) {
-        const errorMemory = await runtime.messageManager.createMemory({
-          userId: message.userId,
-          agentId: message.agentId,
-          content: {
-            text: "❌ Gaussian knowledge service is not available. Please ensure the knowledge graph is initialized.",
-          },
-          roomId: message.roomId,
-        });
-        if (callback) {
-          await callback({
-            text: "❌ Gaussian knowledge service is not available. Please ensure the knowledge graph is initialized.",
-          });
-        }
-        return false;
+        const errorMessage = "❌ Gaussian knowledge service is not available. Please ensure the knowledge graph is initialized.";
+        
+        return {
+          text: errorMessage,
+          success: false
+        };
       }
 
       let responseText = "";
@@ -106,8 +96,10 @@ export const queryGaussianKnowledgeAction: Action = {
         query.toLowerCase().includes("stats") ||
         query.toLowerCase().includes("summary")
       ) {
+        console.log("🔧 DEBUG: Getting stats...");
         // Get overall statistics
         const stats = await knowledgeService.getKnowledgeGraphStats();
+        console.log("🔧 DEBUG: Stats received:", JSON.stringify(stats, null, 2));
         if (stats.error) {
           responseText = `❌ Error getting knowledge graph stats: ${stats.error}`;
         } else {
@@ -123,6 +115,8 @@ export const queryGaussianKnowledgeAction: Action = {
 📄 **Files Processed**: ${stats.processedFiles}
 🕒 **Last Updated**: ${new Date(stats.lastModified).toLocaleString()}`;
         }
+        console.log("🔧 DEBUG: Response text length:", responseText.length);
+        console.log("🔧 DEBUG: Response text preview:", responseText.substring(0, 100));
       } else {
         // Query the knowledge graph
         const result = await knowledgeService.queryKnowledgeGraph(query);
@@ -155,60 +149,37 @@ export const queryGaussianKnowledgeAction: Action = {
         }
       }
 
-      await runtime.messageManager.createMemory({
-        userId: message.userId,
-        agentId: message.agentId,
-        content: {
-          text: responseText,
-        },
-        roomId: message.roomId,
-      });
+      console.log("🔧 DEBUG: Returning response text:", responseText.substring(0, 100) + "...");
 
-      if (callback) {
-        await callback({
-          text: responseText,
-        });
-      }
-
-      return true;
+      return {
+        text: responseText,
+        success: true
+      };
     } catch (error) {
       console.error("Error in queryGaussianKnowledgeAction:", error);
 
-      await runtime.messageManager.createMemory({
-        userId: message.userId,
-        agentId: message.agentId,
-        content: {
-          text: `❌ Error processing your query: ${error instanceof Error ? error.message : "Unknown error"}`,
-        },
-        roomId: message.roomId,
-      });
+      const errorText = `❌ Error processing your query: ${error instanceof Error ? error.message : "Unknown error"}`;
 
-      if (callback) {
-        await callback({
-          text: `❌ Error processing your query: ${error instanceof Error ? error.message : "Unknown error"}`,
-        });
-      }
-
-      return false;
+      return {
+        text: errorText,
+        success: false
+      };
     }
   },
   examples: [
     [
       {
-        user: "{{user1}}",
         content: {
           text: "How many molecules are in the knowledge graph?",
         },
       },
       {
-        user: "{{agent}}",
         content: {
           text: "I'll check the knowledge graph statistics for you.",
           action: "QUERY_GAUSSIAN_KNOWLEDGE",
         },
       },
       {
-        user: "{{agent}}",
         content: {
           text: '🔍 Query Results for: "How many molecules are in the knowledge graph?"\n\n📊 Current Knowledge Base:\n- 🧪 **1** molecules analyzed\n- ⚡ **1** SCF energies\n- 🎵 **39** vibrational frequencies\n- ⚛️  **15** atoms total',
         },
@@ -216,13 +187,11 @@ export const queryGaussianKnowledgeAction: Action = {
     ],
     [
       {
-        user: "{{user1}}",
         content: {
           text: "Show me the knowledge graph stats",
         },
       },
       {
-        user: "{{agent}}",
         content: {
           text: "I'll get the current knowledge graph statistics.",
           action: "QUERY_GAUSSIAN_KNOWLEDGE",
@@ -231,13 +200,11 @@ export const queryGaussianKnowledgeAction: Action = {
     ],
     [
       {
-        user: "{{user1}}",
         content: {
           text: "What SCF energies do we have?",
         },
       },
       {
-        user: "{{agent}}",
         content: {
           text: "I'll search for SCF energy data in the knowledge graph.",
           action: "QUERY_GAUSSIAN_KNOWLEDGE",
@@ -246,13 +213,11 @@ export const queryGaussianKnowledgeAction: Action = {
     ],
     [
       {
-        user: "{{user1}}",
         content: {
           text: "Tell me about HOMO-LUMO gaps",
         },
       },
       {
-        user: "{{agent}}",
         content: {
           text: "I'll look for HOMO-LUMO gap information in our quantum chemistry database.",
           action: "QUERY_GAUSSIAN_KNOWLEDGE",
