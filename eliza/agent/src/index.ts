@@ -628,6 +628,7 @@ export async function createAgent(
         // character.plugins are handled when clients are added
         plugins: [
             bootstrapPlugin,
+            gaussianKnowledgeGraphPlugin,
         ]
             .flat()
             .filter(Boolean),
@@ -761,6 +762,9 @@ async function startAgent(
 
         // start services/plugins/process knowledge
         await runtime.initialize();
+
+        // Initialize custom plugins with special initialization requirements
+        await initializeGaussianKnowledgePlugin(runtime);
 
         // start assigned clients
         runtime.clients = await initializeClients(character, runtime);
