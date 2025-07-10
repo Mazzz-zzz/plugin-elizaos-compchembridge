@@ -18,6 +18,8 @@ export class DeploymentService {
       let pluginPyDir = path.join(__dirname, '..', '..', 'py');
       const targetPyDir = path.join(agentDir, 'py');
       
+      logger.info(`🔍 Initial plugin py directory: ${pluginPyDir}`);
+      
       // Alternative path resolution if the standard method fails
       if (!fs.existsSync(pluginPyDir)) {
         const alternativePaths = [
@@ -53,8 +55,14 @@ export class DeploymentService {
       const filesToDeploy = [
         'parse_gaussian_cclib.py',
         'plot_gaussian_analysis.py',
+        'generate_comprehensive_report.py',
+        'molecular_analyzer.py',
         '__init__.py'
       ];
+      
+      let deployedCount = 0;
+      let skippedCount = 0;
+      let missingCount = 0;
       
       for (const fileName of filesToDeploy) {
         const sourcePath = path.join(pluginPyDir, fileName);
@@ -72,13 +80,18 @@ export class DeploymentService {
           if (shouldCopy) {
             fs.copyFileSync(sourcePath, targetPath);
             logger.info(`✅ Deployed: ${fileName}`);
+            deployedCount++;
           } else {
             logger.info(`⏭️  Skipped (up to date): ${fileName}`);
+            skippedCount++;
           }
         } else {
           logger.warn(`⚠️  Source file not found: ${sourcePath}`);
+          missingCount++;
         }
       }
+      
+      logger.info(`📊 Deployment Summary: ${deployedCount} deployed, ${skippedCount} skipped, ${missingCount} missing`);
       
       // Deploy data files if they don't exist
       await this.deployDataFiles();
@@ -152,7 +165,9 @@ export class DeploymentService {
     
     const requiredFiles = [
       'parse_gaussian_cclib.py',
-      'plot_gaussian_analysis.py'
+      'plot_gaussian_analysis.py',
+      'generate_comprehensive_report.py',
+      'molecular_analyzer.py'
     ];
     
     const missing: string[] = [];

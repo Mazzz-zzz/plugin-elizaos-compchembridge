@@ -9,7 +9,7 @@ var __require = /* @__PURE__ */ ((x) => typeof require !== "undefined" ? require
 import {
   ModelType,
   Service as Service3,
-  logger as logger9
+  logger as logger10
 } from "@elizaos/core";
 import { z } from "zod";
 
@@ -224,6 +224,7 @@ var DeploymentService = class {
       const agentDir = process.cwd();
       let pluginPyDir = path.join(__dirname, "..", "..", "py");
       const targetPyDir = path.join(agentDir, "py");
+      logger.info(`\u{1F50D} Initial plugin py directory: ${pluginPyDir}`);
       if (!fs.existsSync(pluginPyDir)) {
         const alternativePaths = [
           // Try relative to current working directory
@@ -252,8 +253,13 @@ var DeploymentService = class {
       const filesToDeploy = [
         "parse_gaussian_cclib.py",
         "plot_gaussian_analysis.py",
+        "generate_comprehensive_report.py",
+        "molecular_analyzer.py",
         "__init__.py"
       ];
+      let deployedCount = 0;
+      let skippedCount = 0;
+      let missingCount = 0;
       for (const fileName of filesToDeploy) {
         const sourcePath = path.join(pluginPyDir, fileName);
         const targetPath = path.join(targetPyDir, fileName);
@@ -267,13 +273,17 @@ var DeploymentService = class {
           if (shouldCopy) {
             fs.copyFileSync(sourcePath, targetPath);
             logger.info(`\u2705 Deployed: ${fileName}`);
+            deployedCount++;
           } else {
             logger.info(`\u23ED\uFE0F  Skipped (up to date): ${fileName}`);
+            skippedCount++;
           }
         } else {
           logger.warn(`\u26A0\uFE0F  Source file not found: ${sourcePath}`);
+          missingCount++;
         }
       }
+      logger.info(`\u{1F4CA} Deployment Summary: ${deployedCount} deployed, ${skippedCount} skipped, ${missingCount} missing`);
       await this.deployDataFiles();
       logger.info("\u{1F389} Python files deployment complete!");
     } catch (error) {
@@ -331,7 +341,9 @@ var DeploymentService = class {
     const targetPyDir = path.join(agentDir, "py");
     const requiredFiles = [
       "parse_gaussian_cclib.py",
-      "plot_gaussian_analysis.py"
+      "plot_gaussian_analysis.py",
+      "generate_comprehensive_report.py",
+      "molecular_analyzer.py"
     ];
     const missing = [];
     for (const fileName of requiredFiles) {
@@ -430,6 +442,7 @@ var PythonService = class _PythonService extends Service {
    */
   async analyzeMolecularData(molecularData, analysisType = "molecular") {
     try {
+      await this.ensurePythonFilesDeployed();
       const possibleScriptPaths = [
         path2.join(process.cwd(), "py", "molecular_analyzer.py"),
         path2.join(__dirname2, "..", "..", "py", "molecular_analyzer.py"),
@@ -466,6 +479,7 @@ var PythonService = class _PythonService extends Service {
    */
   async generateVisualization(chartType, plotData, outputDir) {
     try {
+      await this.ensurePythonFilesDeployed();
       const possibleScriptPaths = [
         path2.join(process.cwd(), "py", "plot_gaussian_analysis.py"),
         path2.join(__dirname2, "..", "..", "py", "plot_gaussian_analysis.py"),
@@ -553,6 +567,7 @@ var PythonService = class _PythonService extends Service {
    */
   async generateAnalysisPlots(chartType, data, outputPath) {
     try {
+      await this.ensurePythonFilesDeployed();
       const possibleScriptPaths = [
         path2.join(process.cwd(), "py", "plot_gaussian_analysis.py"),
         path2.join(__dirname2, "..", "..", "py", "plot_gaussian_analysis.py"),
@@ -583,6 +598,43 @@ var PythonService = class _PythonService extends Service {
     } catch (error) {
       logger2.error("Analysis plot generation failed:", error);
       return { error: error instanceof Error ? error.message : "Unknown error", success: false };
+    }
+  }
+  /**
+   * Generate comprehensive report using Python
+   */
+  async generateComprehensiveReport(reportData, outputDir) {
+    try {
+      await this.ensurePythonFilesDeployed();
+      const possibleScriptPaths = [
+        path2.join(process.cwd(), "py", "generate_comprehensive_report.py"),
+        path2.join(__dirname2, "..", "..", "py", "generate_comprehensive_report.py"),
+        path2.join(__dirname2, "..", "..", "..", "py", "generate_comprehensive_report.py"),
+        path2.join(process.cwd(), "plugins", "my-compchem-plugin-v2", "py", "generate_comprehensive_report.py"),
+        "./py/generate_comprehensive_report.py"
+      ];
+      let scriptPath = null;
+      for (const possiblePath of possibleScriptPaths) {
+        try {
+          await fs2.access(possiblePath);
+          scriptPath = possiblePath;
+          break;
+        } catch {
+        }
+      }
+      if (!scriptPath) {
+        throw new Error(`Python comprehensive report script not found. Tried paths: ${possibleScriptPaths.join(", ")}`);
+      }
+      const dataJson = JSON.stringify(reportData);
+      const args = [dataJson, outputDir];
+      const result = await this.executePythonScript(scriptPath, args);
+      return JSON.parse(result);
+    } catch (error) {
+      logger2.error("Comprehensive report generation failed:", error);
+      return {
+        error: error instanceof Error ? error.message : "Unknown error",
+        success: false
+      };
     }
   }
   /**
@@ -1979,97 +2031,61 @@ var generateVisualizationAction = {
         if (chartResult.success && chartResult.chartPath) {
           generatedCharts.push(chartResult.chartPath);
           const mainChartPath = chartResult.chartPath;
-          responseText = `\u{1F4CA} **Visualization Generated Successfully**
+          responseText = `\u{1F4CA} **${getChartTypeDisplayName(chartType)} Generated**
 
-\u{1F3A8} **Chart Type:** ${getChartTypeDisplayName(chartType)}
-\u{1F4C1} **Location:** \`${path6.relative(process.cwd(), mainChartPath)}\`
-\u{1F4C8} **Data Points:** ${chartResult.dataPoints || "N/A"}
-\u{1F9EA} **Files Analyzed:** ${stats.totalFiles}
+\u{1F4C8} **Data:** ${chartResult.dataPoints || "N/A"} points from ${stats.totalFiles} files
+\u{1F310} **URL:** http://localhost:3000/charts/visualization-${timestamp}/${path6.basename(chartResult.chartPath)}
 
-**\u{1F4CB} Chart Details:**
-Professional matplotlib visualization generated from knowledge graph data using Python with actual SCF energies and molecular properties.
-
-**\u{1F4A1} Chart Features:**
-\u2022 High-resolution PNG format (300 DPI)
-\u2022 Publication-ready styling
-\u2022 Color-coded data separation
-\u2022 Statistical annotations
-\u2022 Professional typography
-
-**\u{1F50D} Data Summary:**
-\u2022 **Total Energies:** ${Object.keys(energyData.energiesByFile || {}).reduce((sum, file) => sum + (energyData.energiesByFile[file]?.length || 0), 0)}
-\u2022 **Molecules:** ${stats.molecules || 0}  
-\u2022 **Files Processed:** ${stats.totalFiles}
-\u2022 **Analysis Method:** Knowledge graph extraction
-
-**\u{1F4C1} Generated Chart:**
-\u2022 \`${path6.relative(process.cwd(), chartResult.chartPath)}\`
-
-\u{1F310} **View Online:** http://localhost:3000/charts/visualization-${timestamp}/${path6.basename(chartResult.chartPath)}
-
-\u{1F3AF} **Usage:** Perfect for research papers, presentations, and reports!`;
+\u2705 Chart ready for viewing!`;
         } else {
-          responseText = `\u274C **Visualization Generation Failed**
+          responseText = `\u274C **Chart Generation Failed**
 
-**Error:** ${chartResult.error || "Unknown error occurred"}
+**Error:** ${chartResult.error || "Unknown error"}
 
-**\u{1F4A1} Troubleshooting:**
-\u2022 Check that Python matplotlib is installed
-\u2022 Ensure data contains valid numerical values
-\u2022 Verify Python script can access data
-
-**\u{1F4CA} Available Chart Types:**
-\u2022 \`overview\` - Statistics summary
-\u2022 \`energy\` - SCF energy trends  
-\u2022 \`molecular\` - Molecular properties
-\u2022 \`frequency\` - Vibrational analysis
-
-**\u{1F527} Try:** "Generate overview chart" or "Create energy visualization"`;
+\u{1F527} Check Python/matplotlib installation`;
         }
       } catch (error) {
         logger8.error("Error generating visualization:", error);
-        responseText = `\u274C **Visualization Error**
-
-**Details:** ${error.message}
-
-**\u{1F527} Solutions:**
-\u2022 Ensure Python and matplotlib are installed
-\u2022 Check that knowledge graph contains data
-\u2022 Verify file permissions for chart directory
-
-**\u{1F4C1} Data Available:**
-\u2022 Files: ${stats.totalFiles}
-\u2022 Energies: ${energyData.totalEnergies || 0}
-\u2022 Molecules: ${stats.molecules || 0}`;
+        responseText = `\u274C **Chart Error:** ${error.message}`;
       }
       const responseContent = {
         text: responseText,
         actions: ["GENERATE_VISUALIZATION"],
         source: message.content.source,
         attachments: []
-        // Add attachments array
+        // Add attachments array - this is for CLIENT DISPLAY ONLY
       };
       if (generatedCharts.length > 0) {
-        generatedCharts.forEach((chartPath, index) => {
-          const relativePath = path6.relative(process.cwd(), chartPath);
+        const attachmentPromises = generatedCharts.map(async (chartPath, index) => {
           const filename = path6.basename(chartPath);
-          const publicUrl = `/charts/visualization-${timestamp}/${filename}`;
-          responseContent.attachments?.push({
+          const relativePath = path6.relative(process.cwd(), chartPath);
+          const serverUrl = process.env.SERVER_URL || "http://localhost:3000";
+          const staticUrl = `${serverUrl}/charts/visualization-${timestamp}/${filename}`;
+          logger8.info(`Serving chart as static URL (keeping out of model context): ${filename}`);
+          return {
             id: (Date.now() + index).toString(),
-            url: publicUrl,
+            url: staticUrl,
+            // Static URL only - never base64
             title: `${getChartTypeDisplayName(chartType)} Chart`,
             source: "visualization-charts",
-            description: `Generated visualization chart: ${filename}`,
-            text: ""
-          });
+            description: `Chart: ${filename}`,
+            // Keep description short
+            text: relativePath
+            // Minimal text to avoid bloating context
+          };
         });
+        const attachments = await Promise.all(attachmentPromises);
+        responseContent.attachments?.push(...attachments);
+        responseText += `
+
+\u{1F4C1} **Local:** \`${path6.relative(process.cwd(), chartsDir)}\``;
       }
       if (callback) await callback(responseContent);
       return responseContent;
     } catch (error) {
       logger8.error("Error in GENERATE_VISUALIZATION action:", error);
       const errorContent = {
-        text: `\u274C Unexpected error generating visualization: ${error.message}`,
+        text: `\u274C Error: ${error.message}`,
         actions: ["GENERATE_VISUALIZATION"],
         source: message.content.source
       };
@@ -2178,11 +2194,313 @@ function combineFileData(energies, molecules) {
   return combined;
 }
 
+// src/actions/generateReportAction.ts
+import {
+  logger as logger9
+} from "@elizaos/core";
+import { promises as fs7 } from "fs";
+import * as path7 from "path";
+var generateReportAction = {
+  name: "GENERATE_COMPREHENSIVE_REPORT",
+  similes: [
+    "GENERATE_REPORT",
+    "CREATE_REPORT",
+    "COMPREHENSIVE_ANALYSIS",
+    "FULL_REPORT",
+    "ANALYSIS_REPORT",
+    "COMPLETE_ANALYSIS",
+    "DETAILED_REPORT",
+    "SUMMARY_REPORT"
+  ],
+  description: "Generate a comprehensive analysis report with multiple visualizations, statistics, and detailed analysis from the knowledge graph data",
+  validate: async (_runtime, message, _state) => {
+    const text = message.content.text?.toLowerCase() || "";
+    const keywords = [
+      "comprehensive report",
+      "full report",
+      "complete report",
+      "analysis report",
+      "detailed report",
+      "summary report",
+      "generate report",
+      "create report",
+      "comprehensive analysis",
+      "complete analysis",
+      "full analysis",
+      "report",
+      "summary",
+      "overview",
+      "comprehensive"
+    ];
+    return keywords.some((keyword) => text.includes(keyword));
+  },
+  handler: async (runtime, message, _state, _options, callback, _responses) => {
+    try {
+      logger9.info("Generating comprehensive analysis report");
+      const autoService = runtime.getService("auto-knowledge");
+      const pythonService = runtime.getService("python-execution");
+      if (!autoService) {
+        const errorContent = {
+          text: "\u274C Auto knowledge service not available. Please ensure the service is running.",
+          actions: ["GENERATE_COMPREHENSIVE_REPORT"],
+          source: message.content.source
+        };
+        if (callback) await callback(errorContent);
+        return errorContent;
+      }
+      if (!pythonService) {
+        const errorContent = {
+          text: "\u274C Python service not available. Comprehensive reports require Python with matplotlib.",
+          actions: ["GENERATE_COMPREHENSIVE_REPORT"],
+          source: message.content.source
+        };
+        if (callback) await callback(errorContent);
+        return errorContent;
+      }
+      const stats = await autoService.getStats();
+      const energyData = await autoService.getEnergies();
+      const molecularData = await autoService.getMolecularData();
+      if (stats.error) {
+        const errorContent = {
+          text: `\u274C Error getting knowledge graph data: ${stats.error}`,
+          actions: ["GENERATE_COMPREHENSIVE_REPORT"],
+          source: message.content.source
+        };
+        if (callback) await callback(errorContent);
+        return errorContent;
+      }
+      if (stats.totalFiles === 0) {
+        const errorContent = {
+          text: "\u{1F4CA} No data available for report generation. Please add some Gaussian files to `data/examples/` first.",
+          actions: ["GENERATE_COMPREHENSIVE_REPORT"],
+          source: message.content.source
+        };
+        if (callback) await callback(errorContent);
+        return errorContent;
+      }
+      const reportData = prepareReportData(energyData, molecularData, stats);
+      const timestamp = Date.now();
+      const reportsDir = path7.join(process.cwd(), "data", "reports", `comprehensive-${timestamp}`);
+      await fs7.mkdir(reportsDir, { recursive: true });
+      let responseText = "";
+      let reportFiles = [];
+      try {
+        const reportResult = await pythonService.generateComprehensiveReport(reportData, reportsDir);
+        if (reportResult.success) {
+          reportFiles = [
+            reportResult.dashboard_path,
+            ...reportResult.analysis_paths
+          ].filter(Boolean);
+          const serverUrl = process.env.SERVER_URL || "http://localhost:3000";
+          const dashboardFilename = path7.basename(reportResult.dashboard_path);
+          responseText = `\u{1F4CA} **Comprehensive Analysis Report Generated**
+
+\u{1F3AF} **Dashboard:** http://localhost:3000/reports/comprehensive-${timestamp}/${dashboardFilename}
+\u{1F4C8} **Analysis Files:** ${reportResult.total_files} detailed reports
+\u{1F9EA} **Data Sources:** ${stats.totalFiles} Gaussian files
+\u23F0 **Generated:** ${reportResult.timestamp}
+
+## \u{1F4CB} Report Contents
+\u2705 **Main Dashboard** - Overview with key statistics
+\u2705 **Energy Analysis** - Detailed SCF energy trends
+\u2705 **Molecular Analysis** - Molecular properties and formulas
+\u2705 **File Comparison** - Cross-file analysis and completeness
+
+## \u{1F50D} Key Findings
+${generateKeyFindings(stats, energyData, molecularData)}
+
+\u{1F4C1} **Local Path:** \`${path7.relative(process.cwd(), reportsDir)}\``;
+        } else {
+          responseText = `\u274C **Report Generation Failed**
+
+**Error:** ${reportResult.error || "Unknown error"}
+
+\u{1F527} Check Python/matplotlib installation and data availability`;
+        }
+      } catch (error) {
+        logger9.error("Error generating comprehensive report:", error);
+        responseText = `\u274C **Report Error:** ${error.message}`;
+      }
+      const responseContent = {
+        text: responseText,
+        actions: ["GENERATE_COMPREHENSIVE_REPORT"],
+        source: message.content.source,
+        attachments: []
+      };
+      if (reportFiles.length > 0) {
+        const attachmentPromises = reportFiles.map(async (reportPath, index) => {
+          const filename = path7.basename(reportPath);
+          const relativePath = path7.relative(process.cwd(), reportPath);
+          const serverUrl = process.env.SERVER_URL || "http://localhost:3000";
+          const staticUrl = `${serverUrl}/reports/comprehensive-${timestamp}/${filename}`;
+          logger9.info(`Serving report as static URL: ${filename}`);
+          return {
+            id: (Date.now() + index).toString(),
+            url: staticUrl,
+            title: getReportTitle(filename),
+            source: "comprehensive-report",
+            description: `Report: ${filename}`,
+            text: relativePath
+          };
+        });
+        const attachments = await Promise.all(attachmentPromises);
+        responseContent.attachments?.push(...attachments);
+      }
+      if (callback) await callback(responseContent);
+      return responseContent;
+    } catch (error) {
+      logger9.error("Error in GENERATE_COMPREHENSIVE_REPORT action:", error);
+      const errorContent = {
+        text: `\u274C **Comprehensive Report Error:** ${error.message}`,
+        actions: ["GENERATE_COMPREHENSIVE_REPORT"],
+        source: message.content.source
+      };
+      if (callback) await callback(errorContent);
+      return errorContent;
+    }
+  },
+  examples: [
+    [
+      {
+        name: "{{user1}}",
+        content: {
+          text: "Generate a comprehensive report"
+        }
+      },
+      {
+        name: "{{user2}}",
+        content: {
+          text: "\u{1F4CA} **Comprehensive Analysis Report Generated**\n\n\u{1F3AF} **Dashboard:** Available with overview statistics\n\u{1F4C8} **Analysis Files:** 4 detailed reports created\n\u{1F9EA} **Data Sources:** 2 Gaussian files analyzed\n\n## \u{1F4CB} Report Contents\n\u2705 **Main Dashboard** - Overview with key statistics\n\u2705 **Energy Analysis** - Detailed SCF energy trends\n\u2705 **Molecular Analysis** - Molecular properties\n\u2705 **File Comparison** - Cross-file analysis\n\n## \u{1F50D} Key Findings\n\u2022 2 molecules analyzed with 15 SCF energies\n\u2022 Energy range: -154.123 to -98.456 Hartree\n\u2022 Molecular formulas: C7H6O2, C7H8\n\u2022 Atom counts: 15-15 atoms per molecule\n\n\u{1F4C1} **Local Path:** `data/reports/comprehensive-1234567890`",
+          actions: ["GENERATE_COMPREHENSIVE_REPORT"]
+        }
+      }
+    ],
+    [
+      {
+        name: "{{user1}}",
+        content: {
+          text: "Create a full analysis report of all the data"
+        }
+      },
+      {
+        name: "{{user2}}",
+        content: {
+          text: "\u{1F4CA} **Comprehensive Analysis Report Generated**\n\n\u{1F3AF} **Dashboard:** Complete overview with visualizations\n\u{1F4C8} **Analysis Files:** 3 detailed reports\n\u{1F9EA} **Data Sources:** 1 Gaussian file\n\n## \u{1F4CB} Report Contents\n\u2705 **Main Dashboard** - Statistical overview\n\u2705 **Energy Analysis** - SCF convergence analysis\n\u2705 **Molecular Analysis** - Structural properties\n\n## \u{1F50D} Key Findings\n\u2022 Single molecule: C7H6O2 (lactone)\n\u2022 8 SCF energy calculations\n\u2022 15 atoms total\n\u2022 Energy convergence achieved\n\nPerfect for research documentation and analysis review!",
+          actions: ["GENERATE_COMPREHENSIVE_REPORT"]
+        }
+      }
+    ],
+    [
+      {
+        name: "{{user1}}",
+        content: {
+          text: "I need a detailed summary report with charts"
+        }
+      },
+      {
+        name: "{{user2}}",
+        content: {
+          text: "\u{1F4CA} **Comprehensive Analysis Report Generated**\n\n\u{1F3AF} **Dashboard:** Multi-panel overview with charts\n\u{1F4C8} **Analysis Files:** 4 detailed visualizations\n\u{1F9EA} **Data Sources:** 2 Gaussian files analyzed\n\n## \u{1F4CB} Report Contents\n\u2705 **Main Dashboard** - 6-panel overview\n\u2705 **Energy Analysis** - Distribution and trends\n\u2705 **Molecular Analysis** - Properties and statistics\n\u2705 **File Comparison** - Comparative analysis\n\n## \u{1F50D} Key Findings\n\u2022 Multiple molecular systems compared\n\u2022 Energy statistics and distributions\n\u2022 Molecular diversity analysis\n\u2022 Data completeness assessment\n\n\u{1F4CA} **Professional quality** - Publication ready charts!",
+          actions: ["GENERATE_COMPREHENSIVE_REPORT"]
+        }
+      }
+    ]
+  ]
+};
+function prepareReportData(energyData, molecularData, stats) {
+  return {
+    stats: {
+      molecules: stats.molecules || 0,
+      scfEnergies: stats.scfEnergies || 0,
+      frequencies: stats.frequencies || 0,
+      atoms: stats.atoms || 0,
+      totalFiles: stats.totalFiles || 0,
+      enhanced: false
+      // V2 uses basic parsing
+    },
+    energyData: energyData.energiesByFile || {},
+    molecularData: molecularData.moleculesByFile || {},
+    fileData: combineFileDataForReport(energyData.energiesByFile || {}, molecularData.moleculesByFile || {})
+  };
+}
+function combineFileDataForReport(energies, molecules) {
+  const combined = {};
+  const allFiles = /* @__PURE__ */ new Set([...Object.keys(energies), ...Object.keys(molecules)]);
+  for (const filename of allFiles) {
+    const energyList = energies[filename] || [];
+    const molecularProps = molecules[filename] || {};
+    combined[filename] = {
+      energyData: Array.isArray(energyList) ? energyList.map(
+        (e) => typeof e === "object" && e.hartree ? e.hartree : e
+      ) : [],
+      molecularData: molecularProps,
+      homoLumoData: [],
+      // Not available in V2 basic parsing
+      frequencyData: []
+      // Not available in V2 basic parsing
+    };
+  }
+  return combined;
+}
+function generateKeyFindings(stats, energyData, molecularData) {
+  const findings = [];
+  findings.push(`\u2022 ${stats.molecules || 0} molecules analyzed with ${stats.scfEnergies || 0} SCF energies`);
+  if (energyData.energiesByFile) {
+    const allEnergies = [];
+    Object.values(energyData.energiesByFile).forEach((energies) => {
+      if (Array.isArray(energies)) {
+        energies.forEach((e) => {
+          const energy = typeof e === "object" && e.hartree ? e.hartree : e;
+          if (typeof energy === "number") allEnergies.push(energy);
+        });
+      }
+    });
+    if (allEnergies.length > 0) {
+      const minE = Math.min(...allEnergies);
+      const maxE = Math.max(...allEnergies);
+      findings.push(`\u2022 Energy range: ${minE.toFixed(3)} to ${maxE.toFixed(3)} Hartree`);
+    }
+  }
+  if (molecularData.moleculesByFile) {
+    const formulas = /* @__PURE__ */ new Set();
+    const atomCounts = [];
+    Object.values(molecularData.moleculesByFile).forEach((mol) => {
+      if (mol && typeof mol === "object") {
+        if (mol.formula) formulas.add(mol.formula);
+        if (mol.nAtoms) atomCounts.push(mol.nAtoms);
+      }
+    });
+    if (formulas.size > 0) {
+      const formulaList = Array.from(formulas).slice(0, 3).join(", ");
+      findings.push(`\u2022 Molecular formulas: ${formulaList}${formulas.size > 3 ? "..." : ""}`);
+    }
+    if (atomCounts.length > 0) {
+      const minAtoms = Math.min(...atomCounts);
+      const maxAtoms = Math.max(...atomCounts);
+      findings.push(`\u2022 Atom counts: ${minAtoms}-${maxAtoms} atoms per molecule`);
+    }
+  }
+  return findings.join("\n");
+}
+function getReportTitle(filename) {
+  if (filename.includes("dashboard")) {
+    return "Main Dashboard";
+  } else if (filename.includes("energy")) {
+    return "Energy Analysis";
+  } else if (filename.includes("molecular")) {
+    return "Molecular Analysis";
+  } else if (filename.includes("comparison")) {
+    return "File Comparison";
+  } else {
+    return "Analysis Report";
+  }
+}
+
 // src/plugin.ts
 var configSchema = z.object({
   PYTHON_PATH: z.string().optional().default("python3").transform((val) => {
     if (!val) {
-      logger9.info("Using default Python path: python3");
+      logger10.info("Using default Python path: python3");
     }
     return val || "python3";
   }),
@@ -2202,7 +2520,7 @@ var helloWorldAction = {
   },
   handler: async (_runtime, message, _state, _options, callback, _responses) => {
     try {
-      logger9.info("Handling HELLO_WORLD action");
+      logger10.info("Handling HELLO_WORLD action");
       const responseContent = {
         text: "hello world!",
         actions: ["HELLO_WORLD"],
@@ -2213,7 +2531,7 @@ var helloWorldAction = {
       }
       return responseContent;
     } catch (error) {
-      logger9.error("Error in HELLO_WORLD action:", error);
+      logger10.error("Error in HELLO_WORLD action:", error);
       throw error;
     }
   },
@@ -2253,32 +2571,32 @@ var CompchemService = class _CompchemService extends Service3 {
     super(runtime);
   }
   static async start(runtime) {
-    logger9.info(`\u{1F9EA} Starting computational chemistry service: ${(/* @__PURE__ */ new Date()).toISOString()}`);
+    logger10.info(`\u{1F9EA} Starting computational chemistry service: ${(/* @__PURE__ */ new Date()).toISOString()}`);
     const service = new _CompchemService(runtime);
     const pythonService = runtime.getService("python-execution");
     if (pythonService) {
-      logger9.info("\u2705 Python integration available");
+      logger10.info("\u2705 Python integration available");
       try {
         const pythonEnv = await pythonService.checkPythonEnvironment();
         if (pythonEnv.pythonAvailable) {
-          logger9.info(`\u{1F40D} Python ${pythonEnv.pythonVersion} detected`);
-          logger9.info(`\u{1F4E6} Available packages: ${pythonEnv.packagesAvailable.join(", ")}`);
+          logger10.info(`\u{1F40D} Python ${pythonEnv.pythonVersion} detected`);
+          logger10.info(`\u{1F4E6} Available packages: ${pythonEnv.packagesAvailable.join(", ")}`);
           if (pythonEnv.packagesMissing.length > 0) {
-            logger9.warn(`\u26A0\uFE0F  Missing packages: ${pythonEnv.packagesMissing.join(", ")}`);
+            logger10.warn(`\u26A0\uFE0F  Missing packages: ${pythonEnv.packagesMissing.join(", ")}`);
           }
         } else {
-          logger9.warn("\u26A0\uFE0F  Python environment not available");
+          logger10.warn("\u26A0\uFE0F  Python environment not available");
         }
       } catch (error) {
-        logger9.warn("\u26A0\uFE0F  Could not check Python environment:", error);
+        logger10.warn("\u26A0\uFE0F  Could not check Python environment:", error);
       }
     } else {
-      logger9.warn("\u26A0\uFE0F  Python service not available");
+      logger10.warn("\u26A0\uFE0F  Python service not available");
     }
     return service;
   }
   static async stop(runtime) {
-    logger9.info("\u{1F9EA} Stopping computational chemistry service");
+    logger10.info("\u{1F9EA} Stopping computational chemistry service");
     const service = runtime.getService(_CompchemService.serviceType);
     if (!service) {
       throw new Error("Computational chemistry service not found");
@@ -2286,7 +2604,7 @@ var CompchemService = class _CompchemService extends Service3 {
     service.stop();
   }
   async stop() {
-    logger9.info("\u{1F9EA} Computational chemistry service stopped");
+    logger10.info("\u{1F9EA} Computational chemistry service stopped");
   }
 };
 var myCompchemPlugin = {
@@ -2298,20 +2616,20 @@ var myCompchemPlugin = {
     COMPCHEM_DATA_DIR: process.env.COMPCHEM_DATA_DIR
   },
   async init(config) {
-    logger9.info("\u{1F9EA} Initializing computational chemistry plugin v2");
+    logger10.info("\u{1F9EA} Initializing computational chemistry plugin v2");
     try {
       const validatedConfig = await configSchema.parseAsync(config);
       for (const [key, value] of Object.entries(validatedConfig)) {
         if (value) process.env[key] = value;
       }
-      logger9.info("\u2705 Plugin configuration validated successfully");
-      logger9.info(`\u{1F40D} Python path: ${validatedConfig.PYTHON_PATH}`);
-      logger9.info(`\u{1F4C1} Data directory: ${validatedConfig.COMPCHEM_DATA_DIR}`);
+      logger10.info("\u2705 Plugin configuration validated successfully");
+      logger10.info(`\u{1F40D} Python path: ${validatedConfig.PYTHON_PATH}`);
+      logger10.info(`\u{1F4C1} Data directory: ${validatedConfig.COMPCHEM_DATA_DIR}`);
       try {
         await DeploymentService.deployPythonFiles();
       } catch (deployError) {
-        logger9.warn("\u26A0\uFE0F  Failed to auto-deploy Python files:", deployError);
-        logger9.warn("You may need to manually copy Python files to the agent directory");
+        logger10.warn("\u26A0\uFE0F  Failed to auto-deploy Python files:", deployError);
+        logger10.warn("You may need to manually copy Python files to the agent directory");
       }
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -2366,31 +2684,31 @@ var myCompchemPlugin = {
   events: {
     MESSAGE_RECEIVED: [
       async (params) => {
-        logger9.debug("MESSAGE_RECEIVED event received");
-        logger9.debug(Object.keys(params));
+        logger10.debug("MESSAGE_RECEIVED event received");
+        logger10.debug(Object.keys(params));
       }
     ],
     VOICE_MESSAGE_RECEIVED: [
       async (params) => {
-        logger9.debug("VOICE_MESSAGE_RECEIVED event received");
-        logger9.debug(Object.keys(params));
+        logger10.debug("VOICE_MESSAGE_RECEIVED event received");
+        logger10.debug(Object.keys(params));
       }
     ],
     WORLD_CONNECTED: [
       async (params) => {
-        logger9.debug("WORLD_CONNECTED event received");
-        logger9.debug(Object.keys(params));
+        logger10.debug("WORLD_CONNECTED event received");
+        logger10.debug(Object.keys(params));
       }
     ],
     WORLD_JOINED: [
       async (params) => {
-        logger9.debug("WORLD_JOINED event received");
-        logger9.debug(Object.keys(params));
+        logger10.debug("WORLD_JOINED event received");
+        logger10.debug(Object.keys(params));
       }
     ]
   },
   services: [PythonService, CompchemService, AutoKnowledgeService],
-  actions: [helloWorldAction, analyzeMolecularDataAction, parseGaussianFileAction, diagnosticsAction, autoKnowledgeAction, generateVisualizationAction],
+  actions: [helloWorldAction, analyzeMolecularDataAction, parseGaussianFileAction, diagnosticsAction, autoKnowledgeAction, generateVisualizationAction, generateReportAction],
   providers: [helloWorldProvider],
   tests: [StarterPluginTestSuite]
   // dependencies: ['@elizaos/plugin-knowledge'], <--- plugin dependecies go here (if requires another plugin)
@@ -2406,6 +2724,7 @@ export {
   autoKnowledgeAction,
   index_default as default,
   diagnosticsAction,
+  generateReportAction,
   generateVisualizationAction,
   myCompchemPlugin,
   parseGaussianFileAction

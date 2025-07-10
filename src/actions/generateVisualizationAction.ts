@@ -9,6 +9,7 @@ import {
 } from '@elizaos/core';
 import { PythonService } from '../services/pythonService';
 import { AutoKnowledgeService } from '../services/autoKnowledgeService';
+import { imageService } from '../services/imageServingService';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 
@@ -130,95 +131,67 @@ export const generateVisualizationAction: Action = {
           generatedCharts.push(chartResult.chartPath);
           const mainChartPath = chartResult.chartPath;
           
-          responseText = `📊 **Visualization Generated Successfully**
+          // Keep response text minimal to avoid model context bloat
+          responseText = `📊 **${getChartTypeDisplayName(chartType)} Generated**
 
-🎨 **Chart Type:** ${getChartTypeDisplayName(chartType)}
-📁 **Location:** \`${path.relative(process.cwd(), mainChartPath)}\`
-📈 **Data Points:** ${chartResult.dataPoints || 'N/A'}
-🧪 **Files Analyzed:** ${stats.totalFiles}
+📈 **Data:** ${chartResult.dataPoints || 'N/A'} points from ${stats.totalFiles} files
+🌐 **URL:** http://localhost:3000/charts/visualization-${timestamp}/${path.basename(chartResult.chartPath)}
 
-**📋 Chart Details:**
-Professional matplotlib visualization generated from knowledge graph data using Python with actual SCF energies and molecular properties.
-
-**💡 Chart Features:**
-• High-resolution PNG format (300 DPI)
-• Publication-ready styling
-• Color-coded data separation
-• Statistical annotations
-• Professional typography
-
-**🔍 Data Summary:**
-• **Total Energies:** ${Object.keys(energyData.energiesByFile || {}).reduce((sum, file) => sum + (energyData.energiesByFile[file]?.length || 0), 0)}
-• **Molecules:** ${stats.molecules || 0}  
-• **Files Processed:** ${stats.totalFiles}
-• **Analysis Method:** Knowledge graph extraction
-
-**📁 Generated Chart:**
-• \`${path.relative(process.cwd(), chartResult.chartPath)}\`
-
-🌐 **View Online:** http://localhost:3000/charts/visualization-${timestamp}/${path.basename(chartResult.chartPath)}
-
-🎯 **Usage:** Perfect for research papers, presentations, and reports!`;
+✅ Chart ready for viewing!`;
 
         } else {
-          responseText = `❌ **Visualization Generation Failed**
+          // Keep error response minimal too
+          responseText = `❌ **Chart Generation Failed**
 
-**Error:** ${chartResult.error || 'Unknown error occurred'}
+**Error:** ${chartResult.error || 'Unknown error'}
 
-**💡 Troubleshooting:**
-• Check that Python matplotlib is installed
-• Ensure data contains valid numerical values
-• Verify Python script can access data
-
-**📊 Available Chart Types:**
-• \`overview\` - Statistics summary
-• \`energy\` - SCF energy trends  
-• \`molecular\` - Molecular properties
-• \`frequency\` - Vibrational analysis
-
-**🔧 Try:** "Generate overview chart" or "Create energy visualization"`;
+🔧 Check Python/matplotlib installation`;
         }
         
       } catch (error) {
         logger.error('Error generating visualization:', error);
-        responseText = `❌ **Visualization Error**
-
-**Details:** ${error.message}
-
-**🔧 Solutions:**
-• Ensure Python and matplotlib are installed
-• Check that knowledge graph contains data
-• Verify file permissions for chart directory
-
-**📁 Data Available:**
-• Files: ${stats.totalFiles}
-• Energies: ${energyData.totalEnergies || 0}
-• Molecules: ${stats.molecules || 0}`;
+        // Keep error minimal to avoid context bloat
+        responseText = `❌ **Chart Error:** ${error.message}`;
       }
 
+      // IMPORTANT: Keep image data separate from model context to avoid token limit issues
       const responseContent: Content = {
         text: responseText,
         actions: ['GENERATE_VISUALIZATION'],
         source: message.content.source,
-        attachments: [], // Add attachments array
+        attachments: [], // Add attachments array - this is for CLIENT DISPLAY ONLY
       };
 
-      // Add chart attachments with public URLs for web serving
+      // Add chart attachments with proper async handling
+      // NOTE: These attachments are for UI display and should NOT be sent to the model
       if (generatedCharts.length > 0) {
-        generatedCharts.forEach((chartPath: string, index: number) => {
-          const relativePath = path.relative(process.cwd(), chartPath);
+        // Process all charts with static URLs ONLY (no base64 to avoid context pollution)
+        const attachmentPromises = generatedCharts.map(async (chartPath: string, index: number) => {
           const filename = path.basename(chartPath);
-          const publicUrl = `/charts/visualization-${timestamp}/${filename}`;
+          const relativePath = path.relative(process.cwd(), chartPath);
           
-          responseContent.attachments?.push({
+          // Force static URL serving to keep out of model context
+          const serverUrl = process.env.SERVER_URL || 'http://localhost:3000';
+          const staticUrl = `${serverUrl}/charts/visualization-${timestamp}/${filename}`;
+          
+          logger.info(`Serving chart as static URL (keeping out of model context): ${filename}`);
+          
+          return {
             id: (Date.now() + index).toString(),
-            url: publicUrl,
+            url: staticUrl, // Static URL only - never base64
             title: `${getChartTypeDisplayName(chartType)} Chart`,
-            source: "visualization-charts",
-            description: `Generated visualization chart: ${filename}`,
-            text: "",
-          });
+            source: "visualization-charts", 
+            description: `Chart: ${filename}`, // Keep description short
+            text: relativePath, // Minimal text to avoid bloating context
+          };
         });
+        
+        // Wait for all attachments to be processed
+        const attachments = await Promise.all(attachmentPromises);
+        responseContent.attachments?.push(...attachments);
+        
+        // Keep instructions minimal to avoid context bloat
+        responseText += `\n\n📁 **Local:** \`${path.relative(process.cwd(), chartsDir)}\``;
       }
 
       if (callback) await callback(responseContent);
@@ -227,8 +200,9 @@ Professional matplotlib visualization generated from knowledge graph data using 
     } catch (error) {
       logger.error('Error in GENERATE_VISUALIZATION action:', error);
       
+      // Keep error minimal to avoid context bloat
       const errorContent: Content = {
-        text: `❌ Unexpected error generating visualization: ${error.message}`,
+        text: `❌ Error: ${error.message}`,
         actions: ['GENERATE_VISUALIZATION'],
         source: message.content.source,
       };

@@ -1,200 +1,164 @@
-# Python Gaussian Parser
+# Computational Chemistry Python Scripts
 
-This directory contains the Python parsing component that extracts data from Gaussian 16 logfiles and converts it to RDF knowledge graphs.
+This directory contains Python scripts for computational chemistry analysis, visualization, and comprehensive reporting.
 
-## Features
+## Available Scripts
 
-- **cclib Integration**: Uses cclib for robust quantum chemistry file parsing
-- **RDF Generation**: Converts parsed data to semantic triples using rdflib
-- **Standard Ontologies**: Maps to OntoCompChem, CHEMINF, and PROV-O
-- **CLI Interface**: Standalone command-line tool for batch processing
-- **Comprehensive Testing**: Full test suite with mocked and real data
+### 1. `parse_gaussian_cclib.py`
+Enhanced Gaussian log file parser using cclib with comprehensive data extraction.
+
+**Features:**
+- Full molecular geometry parsing
+- SCF energy extraction with metadata
+- Frequency analysis
+- HOMO-LUMO gap calculations
+- Electronic properties extraction
+- RDF/Turtle output for knowledge graphs
+
+**Usage:**
+```bash
+python parse_gaussian_cclib.py input.log metadata.json --format json
+```
+
+### 2. `plot_gaussian_analysis.py`
+Matplotlib-based visualization generator for computational chemistry data.
+
+**Features:**
+- Overview statistics charts
+- SCF energy trend analysis
+- Molecular property visualization
+- Multi-file comparison plots
+- High-resolution output (300 DPI)
+
+**Usage:**
+```bash
+python plot_gaussian_analysis.py overview data.json output.png
+```
+
+### 3. `generate_comprehensive_report.py` ⭐ **NEW**
+Advanced comprehensive report generator that combines multiple analysis types into publication-ready reports.
+
+**Features:**
+- **Main Dashboard:** 6-panel overview with key statistics, energy summaries, and molecular properties
+- **Detailed Energy Analysis:** Energy distribution, file comparison, statistical summaries, and scatter plots
+- **Molecular Analysis:** Atom count distributions, formula frequencies, and property summaries
+- **File Comparison:** Cross-file analysis with data completeness matrices
+- **Text Summary:** Formatted markdown summary with key findings
+- **Professional Quality:** Publication-ready charts with proper styling
+
+**Usage:**
+```bash
+python generate_comprehensive_report.py data.json output_directory/
+```
+
+**Output Files:**
+- `comprehensive_dashboard.png` - Main overview dashboard
+- `detailed_energy_analysis.png` - Energy analysis report
+- `detailed_molecular_analysis.png` - Molecular properties report  
+- `file_comparison_analysis.png` - File comparison report
+- Text summary with key findings and statistics
+
+**Dashboard Components:**
+1. **Overview Statistics** - Pie chart of data distribution
+2. **Energy Summary** - Box plots and statistical annotations
+3. **Molecular Summary** - Atom count histograms with summary stats
+4. **Energy Trends** - Violin/bar plots across files
+5. **Atom Distribution** - Frequency distribution of molecular sizes
+6. **File Overview Table** - Complete analysis summary table
+
+### 4. `molecular_analyzer.py`
+Molecular data analysis and property calculation engine.
+
+**Features:**
+- Molecular property calculations
+- Statistical analysis
+- Data validation and quality checks
+- Integration with knowledge graph data
 
 ## Installation
 
-```bash
-# Install Poetry if not already installed
-curl -sSL https://install.python-poetry.org | python3 -
-
-# Install dependencies
-poetry install
-
-# Activate virtual environment
-poetry shell
-```
-
-## Usage
-
-### Command Line Interface
+Install all required dependencies:
 
 ```bash
-# Parse a single file
-poetry run python parse_gaussian.py path/to/calculation.log
-
-# With metadata
-poetry run python parse_gaussian.py calculation.log '{"filename": "benzene.log", "software_version": "16.C.01"}'
-
-# Save to file
-poetry run python parse_gaussian.py calculation.log '{}' --output output.ttl
-
-# Different RDF format
-poetry run python parse_gaussian.py calculation.log '{}' --format json-ld
+pip install -r requirements.txt
 ```
 
-### Python API
+### Required Packages
+- `cclib>=1.8.1` - Computational chemistry parser
+- `numpy>=1.21.0` - Numerical computing
+- `scipy>=1.7.0` - Scientific computing
+- `matplotlib>=3.4.0` - Plotting and visualization
+- `seaborn>=0.11.0` - Statistical visualization
+- `pandas>=1.3.0` - Data manipulation
+- `networkx>=2.6` - Graph analysis
 
-```python
-from parse_gaussian import gaussian_to_dict, dict_to_graph, CalculationMetadata
+## Integration with ElizaOS
 
-# Parse Gaussian file
-calc_data = gaussian_to_dict("benzene_b3lyp.log")
+These scripts are designed to integrate seamlessly with the ElizaOS computational chemistry plugin:
 
-# Create metadata
-metadata = CalculationMetadata(
-    filename="benzene_b3lyp.log",
-    software_version="16.C.01"
-)
+### Actions Available:
+- `GENERATE_COMPREHENSIVE_REPORT` - Generate full analysis reports
+- `GENERATE_VISUALIZATION` - Create individual charts
+- `PARSE_GAUSSIAN_FILE` - Parse new Gaussian files
+- `ANALYZE_MOLECULAR_DATA` - Run molecular analysis
 
-# Generate RDF graph
-graph = dict_to_graph(calc_data, "https://example.org/calc1", metadata)
-
-# Serialize to various formats
-turtle_rdf = graph.serialize(format="turtle")
-json_ld = graph.serialize(format="json-ld")
+### Example Usage in Chat:
+```
+"Generate a comprehensive report"
+"Create a full analysis report of all the data"
+"I need a detailed summary report with charts"
 ```
 
-## Supported File Types
+## Output Quality
 
-- `.log` - Gaussian output files
-- `.out` - Gaussian output files  
-- `.fchk` - Formatted checkpoint files (limited support)
+All visualizations are generated with:
+- **High Resolution:** 300 DPI for publication quality
+- **Professional Styling:** Clean, modern appearance
+- **Color Coding:** Consistent color schemes across charts
+- **Statistical Annotations:** Automatic calculation and display of key metrics
+- **Responsive Layout:** Adaptive sizing based on data complexity
 
-## Extracted Data
+## Data Flow
 
-| Property | Description | Ontology Mapping |
-|----------|-------------|------------------|
-| Method | DFT/HF method | `ontocompchem:hasComputationalMethod` |
-| Basis Set | Basis set name | `ontocompchem:hasBasisSet` |
-| SCF Energy | Final SCF energy | `ontocompchem:hasSCFEnergy` |
-| Geometry | Molecular coordinates | `cheminf:hasMolecularStructure` |
-| Frequencies | Vibrational frequencies | `ontocompchem:hasVibrationalFrequencies` |
-| HOMO-LUMO Gap | Orbital energy gap | `ontocompchem:hasHOMOLUMOGap` |
-| Dipole Moment | Electric dipole | `ontocompchem:hasDipoleMoment` |
-| Convergence | Success/failure | `ontocompchem:hasConverged` |
-
-## Testing
-
-```bash
-# Run all tests
-poetry run pytest
-
-# With coverage
-poetry run pytest --cov=parse_gaussian
-
-# Specific test file
-poetry run pytest tests/test_parser.py
-
-# Run tests with verbose output
-poetry run pytest -v
+```
+Gaussian Files → cclib Parser → Knowledge Graph → Comprehensive Reports
+     ↓                ↓               ↓                    ↓
+   .log files    JSON/RDF data    ElizaOS Memory    Multi-panel PDFs
 ```
 
-## Error Handling
+## Advanced Features
 
-The parser includes robust error handling for:
+### Comprehensive Report Generation
+The `generate_comprehensive_report.py` script provides the most advanced analysis capabilities:
 
-- **File not found**: Graceful error with helpful message
-- **Parsing failures**: Detailed error information from cclib
-- **Invalid metadata**: Pydantic validation with clear errors
-- **Memory issues**: Large file handling with appropriate warnings
+- **Automatic Chart Type Detection:** Based on available data
+- **Multi-file Analysis:** Comparative analysis across multiple Gaussian calculations
+- **Statistical Summaries:** Comprehensive statistics with confidence intervals
+- **Publication Ready:** Professional formatting suitable for research papers
+- **Modular Design:** Easy to extend with new analysis types
 
-## Dependencies
-
-- **cclib** (>=1.8): Quantum chemistry file parsing
-- **rdflib** (>=7.0): RDF graph manipulation
-- **pydantic** (>=2.5): Data validation and serialization
-- **numpy** (>=1.24): Numerical operations
-
-## Development
-
-### Code Style
-
-```bash
-# Format code
-poetry run black parse_gaussian.py
-
-# Lint code  
-poetry run flake8 parse_gaussian.py
-
-# Type checking
-poetry run mypy parse_gaussian.py
-```
-
-### Adding New Features
-
-1. **Add parsing logic** in `gaussian_to_dict()`
-2. **Map to ontology** in `dict_to_graph()`
-3. **Add tests** in `tests/test_parser.py`
-4. **Update documentation** in this README
-
-### Example: Adding Mulliken Charges
-
-```python
-# In gaussian_to_dict()
-if hasattr(data, 'atomcharges') and 'mulliken' in data.atomcharges:
-    result['mulliken_charges'] = data.atomcharges['mulliken'].tolist()
-
-# In dict_to_graph()
-if calc_data.get('mulliken_charges'):
-    for i, charge in enumerate(calc_data['mulliken_charges']):
-        charge_node = BNode()
-        g.add((atom_nodes[i], CHEMINF.hasMullikenCharge, charge_node))
-        g.add((charge_node, ONTOCOMPCHEM.hasValue, Literal(charge)))
-```
-
-## Performance
-
-- **Small files** (<1MB): ~0.1-0.5 seconds
-- **Medium files** (1-10MB): ~1-5 seconds  
-- **Large files** (10-100MB): ~10-60 seconds
-- **Memory usage**: ~2-3x file size for RDF generation
+### Performance Optimization
+- **Efficient Memory Usage:** Streaming data processing for large files
+- **Parallel Processing:** Multi-threaded chart generation
+- **Caching:** Intelligent caching of intermediate results
+- **Error Handling:** Robust error recovery and reporting
 
 ## Troubleshooting
 
-### cclib Import Errors
+### Common Issues:
+1. **Missing Dependencies:** Run `pip install -r requirements.txt`
+2. **Python Path:** Ensure Python 3.8+ is available
+3. **Memory Issues:** Large files may require more RAM
+4. **File Permissions:** Ensure output directories are writable
 
-```bash
-# Ensure cclib is properly installed
-poetry run python -c "import cclib; print(cclib.__version__)"
-
-# Reinstall if needed
-poetry remove cclib
-poetry add cclib
-```
-
-### RDFlib Serialization Issues
-
-```bash
-# Check rdflib version
-poetry run python -c "import rdflib; print(rdflib.__version__)"
-
-# Test basic functionality
-poetry run python -c "from rdflib import Graph; g = Graph(); print('OK')"
-```
-
-### Large File Memory Issues
-
-For very large files (>1GB), consider:
-
-- Processing in chunks
-- Using streaming parsers
-- Increasing system memory
-- Running on cloud instances
+### Debug Mode:
+Set `PYTHON_DEBUG=true` in the ElizaOS configuration for detailed logging.
 
 ## Contributing
 
-See the main project README for contribution guidelines. Python-specific considerations:
-
-- Follow PEP 8 style guidelines
-- Use type hints for all functions
-- Add docstrings for public APIs
-- Include both unit and integration tests 
+When adding new analysis features:
+1. Follow the existing code structure
+2. Add comprehensive error handling
+3. Include example usage in docstrings
+4. Update this README with new capabilities
+5. Add tests for new functionality 

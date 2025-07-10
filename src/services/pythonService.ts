@@ -127,6 +127,9 @@ export class PythonService extends Service {
     analysisType: 'molecular' | 'energy' | 'visualization' = 'molecular'
   ): Promise<any> {
     try {
+      // Ensure Python files are deployed before attempting to use them
+      await this.ensurePythonFilesDeployed();
+      
       // Try to find the Python script in various locations
       const possibleScriptPaths = [
         path.join(process.cwd(), 'py', 'molecular_analyzer.py'),
@@ -174,6 +177,9 @@ export class PythonService extends Service {
     outputDir: string
   ): Promise<any> {
     try {
+      // Ensure Python files are deployed before attempting to use them
+      await this.ensurePythonFilesDeployed();
+      
       // Try to find the Python plotting script
       const possibleScriptPaths = [
         path.join(process.cwd(), 'py', 'plot_gaussian_analysis.py'),
@@ -291,6 +297,9 @@ export class PythonService extends Service {
     outputPath?: string
   ): Promise<any> {
     try {
+      // Ensure Python files are deployed before attempting to use them
+      await this.ensurePythonFilesDeployed();
+      
       // Try to find the Python script in various locations
       const possibleScriptPaths = [
         path.join(process.cwd(), 'py', 'plot_gaussian_analysis.py'),
@@ -330,6 +339,56 @@ export class PythonService extends Service {
     } catch (error) {
       logger.error('Analysis plot generation failed:', error);
       return { error: error instanceof Error ? error.message : 'Unknown error', success: false };
+    }
+  }
+
+  /**
+   * Generate comprehensive report using Python
+   */
+  async generateComprehensiveReport(
+    reportData: any,
+    outputDir: string
+  ): Promise<any> {
+    try {
+      // Ensure Python files are deployed before attempting to use them
+      await this.ensurePythonFilesDeployed();
+      
+      // Try to find the Python comprehensive report script
+      const possibleScriptPaths = [
+        path.join(process.cwd(), 'py', 'generate_comprehensive_report.py'),
+        path.join(__dirname, '..', '..', 'py', 'generate_comprehensive_report.py'),
+        path.join(__dirname, '..', '..', '..', 'py', 'generate_comprehensive_report.py'),
+        path.join(process.cwd(), 'plugins', 'my-compchem-plugin-v2', 'py', 'generate_comprehensive_report.py'),
+        './py/generate_comprehensive_report.py'
+      ];
+
+      let scriptPath: string | null = null;
+      for (const possiblePath of possibleScriptPaths) {
+        try {
+          await fs.access(possiblePath);
+          scriptPath = possiblePath;
+          break;
+        } catch {
+          // Script doesn't exist at this path, continue
+        }
+      }
+
+      if (!scriptPath) {
+        throw new Error(`Python comprehensive report script not found. Tried paths: ${possibleScriptPaths.join(', ')}`);
+      }
+
+      const dataJson = JSON.stringify(reportData);
+      const args = [dataJson, outputDir];
+        
+      const result = await this.executePythonScript(scriptPath, args);
+      
+      return JSON.parse(result);
+    } catch (error) {
+      logger.error('Comprehensive report generation failed:', error);
+      return { 
+        error: error instanceof Error ? error.message : 'Unknown error', 
+        success: false 
+      };
     }
   }
 

@@ -71,6 +71,10 @@ declare class PythonService extends Service {
      */
     generateAnalysisPlots(chartType: string, data: any, outputPath?: string): Promise<any>;
     /**
+     * Generate comprehensive report using Python
+     */
+    generateComprehensiveReport(reportData: any, outputDir: string): Promise<any>;
+    /**
      * Check if Python and required packages are available
      */
     checkPythonEnvironment(): Promise<{
@@ -93,6 +97,8 @@ declare const analyzeMolecularDataAction: Action;
 
 declare const generateVisualizationAction: Action;
 
+declare const generateReportAction: Action;
+
 /**
  * Action for parsing Gaussian log files using cclib
  */
@@ -103,4 +109,4 @@ declare const parseGaussianFileAction: Action;
  */
 declare const diagnosticsAction: Action;
 
-export { AutoKnowledgeService, CompchemService, PythonService, analyzeMolecularDataAction, autoKnowledgeAction, myCompchemPlugin as default, diagnosticsAction, generateVisualizationAction, myCompchemPlugin, parseGaussianFileAction };
+export { AutoKnowledgeService, CompchemService, PythonService, analyzeMolecularDataAction, autoKnowledgeAction, myCompchemPlugin as default, diagnosticsAction, generateReportAction, generateVisualizationAction, myCompchemPlugin, parseGaussianFileAction };

@@ -1,7 +1,7 @@
 {
   "name": "plugin-my-compchem-plugin-v2",
   "description": "Advanced computational chemistry plugin for ElizaOS with integrated Python analysis capabilities",
-  "version": "2.0.0",
+  "version": "2.0.4",
   "type": "module",
   "main": "dist/index.js",
   "module": "dist/index.js",
