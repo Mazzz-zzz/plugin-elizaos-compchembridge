@@ -8,6 +8,7 @@ import { promisify } from 'util';
 import * as path from 'path';
 import { promises as fs } from 'fs';
 import { fileURLToPath } from 'url';
+import { DeploymentService } from './deploymentService';
 
 // ES modules equivalent of __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -225,6 +226,8 @@ export class PythonService extends Service {
     outputFormat: 'json' | 'turtle' = 'json'
   ): Promise<any> {
     try {
+      // Ensure Python files are deployed before attempting to use them
+      await this.ensurePythonFilesDeployed();
       // Try to find the Python script in various locations
       const possibleScriptPaths = [
         path.join(process.cwd(), 'py', 'parse_gaussian_cclib.py'),
@@ -364,6 +367,22 @@ export class PythonService extends Service {
         packagesMissing: ['numpy', 'matplotlib', 'scipy', 'pandas', 'seaborn', 'cclib'],
         cclibAvailable: false
       };
+    }
+  }
+
+  /**
+   * Ensure Python files are deployed and available
+   */
+  private async ensurePythonFilesDeployed(): Promise<void> {
+    const deployment = DeploymentService.checkDeployment();
+    if (!deployment.deployed) {
+      logger.info(`🚀 Auto-deploying missing Python files: ${deployment.missing.join(', ')}`);
+      try {
+        await DeploymentService.deployPythonFiles();
+      } catch (error) {
+        logger.warn('⚠️  Auto-deployment failed:', error);
+        throw new Error(`Required Python files missing: ${deployment.missing.join(', ')}`);
+      }
     }
   }
 } 

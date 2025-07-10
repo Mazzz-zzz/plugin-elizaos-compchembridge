@@ -18,6 +18,7 @@ import { StarterPluginTestSuite } from './tests';
 
 // Import Python service and actions
 import { PythonService } from './services/pythonService';
+import { DeploymentService } from './services/deploymentService';
 import { analyzeMolecularDataAction } from './actions/analyzeMolecularData';
 import { generateVisualizationAction } from './actions/generateVisualization';
 import { parseGaussianFileAction } from './actions/parseGaussianFile';
@@ -225,6 +226,15 @@ export const myCompchemPlugin: Plugin = {
       logger.info('✅ Plugin configuration validated successfully');
       logger.info(`🐍 Python path: ${validatedConfig.PYTHON_PATH}`);
       logger.info(`📁 Data directory: ${validatedConfig.COMPCHEM_DATA_DIR}`);
+      
+      // Auto-deploy Python files to agent directory
+      try {
+        await DeploymentService.deployPythonFiles();
+      } catch (deployError) {
+        logger.warn('⚠️  Failed to auto-deploy Python files:', deployError);
+        logger.warn('You may need to manually copy Python files to the agent directory');
+      }
+      
     } catch (error) {
       if (error instanceof z.ZodError) {
         throw new Error(

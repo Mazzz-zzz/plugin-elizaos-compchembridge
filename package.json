@@ -73,7 +73,10 @@
     "test:install": "node scripts/install-test-deps.js",
     "publish": "elizaos publish",
     "format": "prettier --write ./src",
-    "format:check": "prettier --check ./src"
+    "format:check": "prettier --check ./src",
+    "deploy:python": "node scripts/deploy-python.js",
+    "deploy:auto": "npm run deploy:python && npm run build",
+    "postinstall": "node scripts/deploy-python.js"
   },
   "publishConfig": {
     "access": "public"

@@ -52,6 +52,10 @@ declare class PythonService extends Service {
         packagesMissing: string[];
         cclibAvailable: boolean;
     }>;
+    /**
+     * Ensure Python files are deployed and available
+     */
+    private ensurePythonFilesDeployed;
 }
 
 /**
