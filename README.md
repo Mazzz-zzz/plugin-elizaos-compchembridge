@@ -1,255 +1,275 @@
-# ElizaOS Plugin
+# Computational Chemistry Plugin V2
 
-This is an ElizaOS plugin built with the official plugin starter template.
+Advanced computational chemistry plugin for ElizaOS with integrated Python analysis capabilities.
 
-## Getting Started
+## Overview
 
-```bash
-# Create a new plugin (automatically adds "plugin-" prefix)
-elizaos create -t plugin solana
-# This creates: plugin-solana
-# Dependencies are automatically installed and built
+This plugin enables ElizaOS agents to perform molecular analysis, computational chemistry calculations, and generate visualizations using Python integration. It migrates and enhances functionality from the v1 plugin with improved architecture and extended capabilities.
 
-# Navigate to the plugin directory
-cd plugin-solana
+## ✨ Features
 
-# Start development immediately
-elizaos dev
+### 🧪 **Molecular Analysis**
+- **Property Calculation**: Molecular weight, density estimation, complexity scoring
+- **Energy Analysis**: SCF energy classification, HOMO-LUMO gap analysis, conductivity prediction
+- **Stability Assessment**: Bond-to-atom ratio analysis and stability estimates
+- **Formula Recognition**: Automatic molecular formula extraction from text
+
+### 🎨 **Visualization & Diagrams**
+- **ASCII Structure Diagrams**: Text-based molecular structure representations
+- **Coordinate System Support**: 2D/3D molecular coordinate processing
+- **Element Color Coding**: Standard CPK color scheme for atoms
+- **Bounds Calculation**: Automatic molecular dimension analysis
+
+### 🐍 **Python Integration**
+- **Seamless Script Execution**: Direct Python script calling from TypeScript actions
+- **Environment Detection**: Automatic Python and package availability checking
+- **Streaming Support**: Real-time output for long-running calculations
+- **Error Handling**: Comprehensive error reporting and timeout management
+
+### 🔧 **Extensible Architecture**
+- **Service-Based Design**: Modular Python execution service
+- **Configurable Environment**: Customizable Python paths and debug settings
+- **Package Management**: Automatic detection of missing dependencies
+- **Multiple Analysis Types**: Molecular, energy, and visualization analysis modes
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+1. **Python Environment**
+   ```bash
+   # Ensure Python 3.7+ is installed
+   python3 --version
+
+   # Install required packages
+   pip install numpy matplotlib scipy pandas seaborn
+   ```
+
+2. **Plugin Installation**
+   ```bash
+   # Create the plugin
+   elizaos create -t plugin my-compchem-plugin-v2
+
+   # Navigate to the plugin directory
+   cd plugin-my-compchem-plugin-v2
+
+   # Start development
+   elizaos dev
+   ```
+
+### Basic Configuration
+
+Set up environment variables in your `.env` file:
+
+```env
+# Optional: Custom Python path
+PYTHON_PATH=python3
+
+# Optional: Enable debug logging
+PYTHON_DEBUG=true
+
+# Optional: Data directory for analysis files
+COMPCHEM_DATA_DIR=./data
 ```
 
-## Development
+## 🎯 Available Actions
 
-```bash
-# Start development with hot-reloading (recommended)
-elizaos dev
+### 1. Molecular Analysis (`ANALYZE_MOLECULAR_DATA`)
 
-# OR start without hot-reloading
-elizaos start
-# Note: When using 'start', you need to rebuild after changes:
-# bun run build
+Analyzes molecular structures and computes chemical properties.
 
-# Test the plugin
-elizaos test
+**Example Usage:**
+```
+User: "Can you analyze this molecular structure and compute its properties?"
+Agent: "🧪 Molecular Analysis Results
+
+Formula: C6H6
+Atom Count: 12
+Bond Count: 12
+Molecular Weight: 78.11 g/mol
+
+Computed Properties:
+• Density Estimate: 7.81 g/cm³
+• Complexity Score: 24/100
+• Stability: stable"
 ```
 
-## Testing
+**Trigger Keywords:**
+- "analyze molecule"
+- "molecular analysis"
+- "compute properties"
+- "molecular weight"
+- "chemical properties"
 
-ElizaOS provides a comprehensive testing structure for plugins:
+### 2. Molecular Visualization (`GENERATE_MOLECULAR_VISUALIZATION`)
 
-### Test Structure
+Generates molecular structure visualizations and diagrams.
 
-- **Component Tests** (`__tests__/` directory):
+**Example Usage:**
+```
+User: "Can you visualize the molecular structure of benzene?"
+Agent: "🎨 Molecular Visualization Generated
 
-  - **Unit Tests**: Test individual functions/classes in isolation
-  - **Integration Tests**: Test how components work together
-  - Run with: `elizaos test component`
+Molecule: C6H6 (Benzene)
+Structure:
 
-- **End-to-End Tests** (`__tests__/e2e/` directory):
+```
+    H
+    |
+H-C=C-H
+ |   |
+H-C=C-H
+    |
+    H
+```
 
-  - Test the plugin within a full ElizaOS runtime
-  - Validate complete user scenarios with a real agent
-  - Run with: `elizaos test e2e`
+Atoms: 12
+Bonds: 12
 
-- **Running All Tests**:
-  - `elizaos test` runs both component and e2e tests
+Atom Details:
+• C: 6
+• H: 6"
+```
 
-### Writing Tests
+**Trigger Keywords:**
+- "visualize molecule"
+- "plot structure"
+- "show structure"
+- "molecular diagram"
 
-Component tests use Vitest:
+## 🔧 Technical Details
+
+### Python Service Architecture
+
+The plugin uses a dedicated `PythonService` that handles:
+
+1. **Script Execution**: Executes Python scripts using `execFile` and `spawn`
+2. **Environment Checking**: Validates Python installation and package availability
+3. **Error Handling**: Provides detailed error messages and timeout management
+4. **Data Processing**: Handles JSON data exchange between TypeScript and Python
+
+### Core Python Scripts
+
+- **`py/molecular_analyzer.py`**: Main analysis script for molecular calculations
+- **`py/requirements.txt`**: Python package dependencies
+
+### Services
+
+1. **PythonService**: Manages Python script execution
+2. **CompchemService**: Coordinates computational chemistry operations
+
+### Configuration Schema
 
 ```typescript
-// Unit test example (__tests__/plugin.test.ts)
-describe('Plugin Configuration', () => {
-  it('should have correct plugin metadata', () => {
-    expect(starterPlugin.name).toBe('plugin-my-compchem-plugin-v2');
-  });
-});
-
-// Integration test example (__tests__/integration.test.ts)
-describe('Integration: HelloWorld Action with StarterService', () => {
-  it('should handle HelloWorld action with StarterService', async () => {
-    // Test interactions between components
-  });
-});
+{
+  PYTHON_PATH: string,        // Path to Python interpreter (default: "python3")
+  PYTHON_DEBUG: boolean,      // Enable debug logging (default: false)
+  COMPCHEM_DATA_DIR: string   // Data directory (default: "./data")
+}
 ```
 
-E2E tests run in a real ElizaOS runtime:
+## 📊 Data Formats
 
-```typescript
-// E2E test example (__tests__/e2e/starter-plugin.ts)
-export const StarterPluginTestSuite: TestSuite = {
-  name: 'plugin_starter_test_suite',
-  description: 'E2E tests for the starter plugin',
-  tests: [
-    {
-      name: 'hello_world_action_test',
-      fn: async (runtime) => {
-        // Simulate user asking agent to say hello
-        const testMessage = {
-          content: { text: 'Can you say hello?' }
-        };
-
-        // Execute action and capture response
-        const response = await helloWorldAction.handler(runtime, testMessage, ...);
-
-        // Verify agent responds with "hello world"
-        if (!response.text.includes('hello world')) {
-          throw new Error('Expected "hello world" in response');
-        }
-      },
-    },
-  ],
-};
-```
-
-#### Key E2E Testing Features:
-
-- **Real Runtime Environment**: Tests run with a fully initialized ElizaOS runtime
-- **Plugin Interaction**: Test how your plugin behaves with the actual agent
-- **Scenario Testing**: Validate complete user interactions, not just individual functions
-- **No Mock Required**: Access real services, actions, and providers
-
-#### Writing New E2E Tests:
-
-1. Add a new test object to the `tests` array in your test suite
-2. Each test receives the runtime instance as a parameter
-3. Throw errors to indicate test failures (no assertion library needed)
-4. See the comprehensive documentation in `__tests__/e2e/starter-plugin.ts` for detailed examples
-
-The test utilities in `__tests__/test-utils.ts` provide mock objects and setup functions to simplify writing component tests.
-
-## Publishing & Continuous Development
-
-### Initial Setup
-
-Before publishing your plugin, ensure you meet these requirements:
-
-1. **npm Authentication**
-
-   ```bash
-   npm login
-   ```
-
-2. **GitHub Repository**
-
-   - Create a public GitHub repository for this plugin
-   - Add the 'elizaos-plugins' topic to the repository
-   - Use 'main' as the default branch
-
-3. **Required Assets**
-   - Add images to the `images/` directory:
-     - `logo.jpg` (400x400px square, <500KB)
-     - `banner.jpg` (1280x640px, <1MB)
-
-### Initial Publishing
-
-```bash
-# Test your plugin meets all requirements
-elizaos publish --test
-
-# Publish to npm + GitHub + registry (recommended)
-elizaos publish
-```
-
-This command will:
-
-- Publish your plugin to npm for easy installation
-- Create/update your GitHub repository
-- Submit your plugin to the ElizaOS registry for discoverability
-
-### Continuous Development & Updates
-
-**Important**: After your initial publish with `elizaos publish`, all future updates should be done using standard npm and git workflows, not the ElizaOS CLI.
-
-#### Standard Update Workflow
-
-1. **Make Changes**
-
-   ```bash
-   # Edit your plugin code
-   elizaos dev  # Test locally with hot-reload
-   ```
-
-2. **Test Your Changes**
-
-   ```bash
-   # Run all tests
-   elizaos test
-
-   # Run specific test types if needed
-   elizaos test component  # Component tests only
-   elizaos test e2e       # E2E tests only
-   ```
-
-3. **Update Version**
-
-   ```bash
-   # Patch version (bug fixes): 1.0.0 → 1.0.1
-   npm version patch
-
-   # Minor version (new features): 1.0.1 → 1.1.0
-   npm version minor
-
-   # Major version (breaking changes): 1.1.0 → 2.0.0
-   npm version major
-   ```
-
-4. **Publish to npm**
-
-   ```bash
-   npm publish
-   ```
-
-5. **Push to GitHub**
-   ```bash
-   git push origin main
-   git push --tags  # Push version tags
-   ```
-
-#### Why Use Standard Workflows?
-
-- **npm publish**: Directly updates your package on npm registry
-- **git push**: Updates your GitHub repository with latest code
-- **Automatic registry updates**: The ElizaOS registry automatically syncs with npm, so no manual registry updates needed
-- **Standard tooling**: Uses familiar npm/git commands that work with all development tools
-
-### Alternative Publishing Options (Initial Only)
-
-```bash
-# Publish to npm only (skip GitHub and registry)
-elizaos publish --npm
-
-# Publish but skip registry submission
-elizaos publish --skip-registry
-
-# Generate registry files locally without publishing
-elizaos publish --dry-run
-```
-
-## Configuration
-
-The `agentConfig` section in `package.json` defines the parameters your plugin requires:
+### Molecular Data Input
 
 ```json
-"agentConfig": {
-  "pluginType": "elizaos:plugin:1.0.0",
-  "pluginParameters": {
-    "API_KEY": {
-      "type": "string",
-      "description": "API key for the service"
-    }
+{
+  "formula": "C6H6",
+  "atoms": [
+    { "id": 1, "element": "C", "x": 0, "y": 0, "z": 0 },
+    { "id": 2, "element": "C", "x": 1.4, "y": 0, "z": 0 }
+  ],
+  "bonds": [
+    { "from": 1, "to": 2 }
+  ],
+  "scf_energy": -231.5,
+  "homo_lumo_gap": 5.2
+}
+```
+
+### Analysis Output
+
+```json
+{
+  "formula": "C6H6",
+  "atom_count": 12,
+  "bond_count": 12,
+  "molecular_weight": 78.11,
+  "success": true,
+  "properties": {
+    "density_estimate": 7.81,
+    "complexity_score": 24,
+    "stability_estimate": "stable"
   }
 }
 ```
 
-Customize this section to match your plugin's requirements.
+## 🧪 Development & Testing
 
-## Documentation
+### Running Tests
 
-Provide clear documentation about:
+```bash
+# Run all tests
+elizaos test
 
-- What your plugin does
-- How to use it
-- Required API keys or credentials
-- Example usage
-- Version history and changelog
+# Run component tests only
+elizaos test component
+
+# Run e2e tests only
+elizaos test e2e
+```
+
+### Development Mode
+
+```bash
+# Start with hot-reloading
+elizaos dev
+
+# Test Python integration
+python3 py/molecular_analyzer.py '{"formula": "H2O"}' --analysis_type molecular
+```
+
+### Debugging Python Scripts
+
+Enable debug mode:
+
+```env
+PYTHON_DEBUG=true
+```
+
+This will show detailed Python execution logs.
+
+## 📈 Performance Considerations
+
+- **Script Timeout**: Python scripts have a 30-second default timeout
+- **Memory Usage**: Large molecular structures may require increased memory allocation
+- **Package Dependencies**: Missing Python packages will show warnings but won't break functionality
+
+## 🔮 Future Enhancements
+
+- **cclib Integration**: Support for advanced quantum chemistry file parsing
+- **3D Visualizations**: Enhanced visualization capabilities with matplotlib
+- **File Processing**: Direct support for common quantum chemistry file formats (.log, .out, .fchk)
+- **Batch Analysis**: Process multiple molecular structures simultaneously
+
+## 📚 Resources
+
+- [ElizaOS Plugin Documentation](https://elizaos.ai/docs/plugins)
+- [Python Scientific Computing](https://scipy.org/)
+- [Computational Chemistry](https://en.wikipedia.org/wiki/Computational_chemistry)
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests for new functionality
+5. Submit a pull request
+
+## 📄 License
+
+This plugin is licensed under the MIT License.
+
+---
+
+**Ready to revolutionize computational chemistry with AI agents!** 🧪✨

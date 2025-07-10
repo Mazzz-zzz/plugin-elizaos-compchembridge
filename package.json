@@ -82,9 +82,20 @@
   "agentConfig": {
     "pluginType": "elizaos:plugin:1.0.0",
     "pluginParameters": {
-      "API_KEY": {
+      "PYTHON_PATH": {
         "type": "string",
-        "description": "API key for the service"
+        "description": "Path to Python interpreter (default: python3)",
+        "default": "python3"
+      },
+      "PYTHON_DEBUG": {
+        "type": "boolean",
+        "description": "Enable Python debug logging",
+        "default": false
+      },
+      "COMPCHEM_DATA_DIR": {
+        "type": "string", 
+        "description": "Directory for computational chemistry data files",
+        "default": "./data"
       }
     }
   },

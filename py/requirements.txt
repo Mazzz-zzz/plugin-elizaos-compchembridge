@@ -1,0 +1,15 @@
+# Gaussian Knowledge Graph Plugin Python Dependencies
+# cclib - Comprehensive computational chemistry parser
+cclib>=1.8.1
+
+# Core dependencies for analysis
+numpy>=1.21.0
+
+# Dependencies for visualization and analysis
+scipy>=1.7.0
+matplotlib>=3.4.0
+seaborn>=0.11.0
+
+# Additional dependencies for advanced features
+pandas>=1.3.0
+networkx>=2.6 

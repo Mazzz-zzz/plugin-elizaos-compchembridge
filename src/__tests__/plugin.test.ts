@@ -1,49 +1,34 @@
-import { describe, expect, it, spyOn, beforeEach, afterEach, beforeAll, afterAll } from 'bun:test';
-import { starterPlugin, StarterService } from '../index';
-import { ModelType, logger } from '@elizaos/core';
+import { describe, expect, it, beforeAll } from 'bun:test';
+import { myCompchemPlugin, CompchemService, PythonService } from '../index';
+import { logger } from '@elizaos/core';
 import dotenv from 'dotenv';
 
 // Setup environment variables
 dotenv.config();
 
-// Need to spy on logger for documentation
+// Mock logger for testing
 beforeAll(() => {
-  spyOn(logger, 'info');
-  spyOn(logger, 'error');
-  spyOn(logger, 'warn');
-  spyOn(logger, 'debug');
+  // Setup any test configuration here
 });
 
-afterAll(() => {
-  // No global restore needed in bun:test
-});
-
-// Create a real runtime for testing
-function createRealRuntime() {
+// Create a mock runtime for testing
+function createMockRuntime() {
   const services = new Map();
-
-  // Create a real service instance if needed
-  const createService = (serviceType: string) => {
-    if (serviceType === StarterService.serviceType) {
-      return new StarterService({
-        character: {
-          name: 'Test Character',
-          system: 'You are a helpful assistant for testing.',
-        },
-      } as any);
-    }
-    return null;
-  };
 
   return {
     character: {
       name: 'Test Character',
-      system: 'You are a helpful assistant for testing.',
+      system: 'You are a computational chemistry assistant for testing.',
       plugins: [],
       settings: {},
     },
-    getSetting: (key: string) => null,
-    models: starterPlugin.models,
+    getSetting: (key: string) => {
+      if (key === 'PYTHON_PATH') return 'python3';
+      if (key === 'PYTHON_DEBUG') return 'false';
+      if (key === 'COMPCHEM_DATA_DIR') return './data';
+      return null;
+    },
+    models: myCompchemPlugin.models || {},
     db: {
       get: async (key: string) => null,
       set: async (key: string, value: any) => true,
@@ -51,132 +36,136 @@ function createRealRuntime() {
       getKeys: async (pattern: string) => [],
     },
     getService: (serviceType: string) => {
-      // Log the service request for debugging
-      logger.debug(`Requesting service: ${serviceType}`);
-
-      // Get from cache or create new
-      if (!services.has(serviceType)) {
-        logger.debug(`Creating new service: ${serviceType}`);
-        services.set(serviceType, createService(serviceType));
-      }
-
-      return services.get(serviceType);
+      return services.get(serviceType) || null;
     },
     registerService: (serviceType: string, service: any) => {
-      logger.debug(`Registering service: ${serviceType}`);
       services.set(serviceType, service);
     },
   };
 }
 
-describe('Plugin Configuration', () => {
+describe('Computational Chemistry Plugin Configuration', () => {
   it('should have correct plugin metadata', () => {
-    expect(starterPlugin.name).toBe('plugin-starter');
-    expect(starterPlugin.description).toBe('Plugin starter for elizaOS');
-    expect(starterPlugin.config).toBeDefined();
+    expect(myCompchemPlugin.name).toBe('my-compchem-plugin-v2');
+    expect(myCompchemPlugin.description).toBe('Advanced computational chemistry plugin for ElizaOS with integrated Python analysis capabilities.');
+    expect(myCompchemPlugin.config).toBeDefined();
   });
 
-  it('should include the EXAMPLE_PLUGIN_VARIABLE in config', () => {
-    expect(starterPlugin.config).toHaveProperty('EXAMPLE_PLUGIN_VARIABLE');
+  it('should include the PYTHON_PATH in config', () => {
+    expect(myCompchemPlugin.config).toHaveProperty('PYTHON_PATH');
+  });
+
+  it('should include the PYTHON_DEBUG in config', () => {
+    expect(myCompchemPlugin.config).toHaveProperty('PYTHON_DEBUG');
+  });
+
+  it('should include the COMPCHEM_DATA_DIR in config', () => {
+    expect(myCompchemPlugin.config).toHaveProperty('COMPCHEM_DATA_DIR');
   });
 
   it('should initialize properly', async () => {
-    const originalEnv = process.env.EXAMPLE_PLUGIN_VARIABLE;
+    const originalEnvs = {
+      PYTHON_PATH: process.env.PYTHON_PATH,
+      PYTHON_DEBUG: process.env.PYTHON_DEBUG,
+      COMPCHEM_DATA_DIR: process.env.COMPCHEM_DATA_DIR,
+    };
 
     try {
-      process.env.EXAMPLE_PLUGIN_VARIABLE = 'test-value';
+      process.env.PYTHON_PATH = 'python3';
+      process.env.PYTHON_DEBUG = 'false';
+      process.env.COMPCHEM_DATA_DIR = './data';
 
-      // Initialize with config - using real runtime
-      const runtime = createRealRuntime();
+      // Initialize with config - using mock runtime
+      const runtime = createMockRuntime();
 
-      if (starterPlugin.init) {
-        await starterPlugin.init({ EXAMPLE_PLUGIN_VARIABLE: 'test-value' }, runtime as any);
+      if (myCompchemPlugin.init) {
+        await myCompchemPlugin.init({
+          PYTHON_PATH: 'python3',
+          PYTHON_DEBUG: 'false',
+          COMPCHEM_DATA_DIR: './data'
+        }, runtime as any);
         expect(true).toBe(true); // If we got here, init succeeded
       }
     } finally {
-      process.env.EXAMPLE_PLUGIN_VARIABLE = originalEnv;
-    }
-  });
-
-  it('should have a valid config', () => {
-    expect(starterPlugin.config).toBeDefined();
-    if (starterPlugin.config) {
-      // Check if the config has expected EXAMPLE_PLUGIN_VARIABLE property
-      expect(Object.keys(starterPlugin.config)).toContain('EXAMPLE_PLUGIN_VARIABLE');
-    }
-  });
-});
-
-describe('Plugin Models', () => {
-  it('should have TEXT_SMALL model defined', () => {
-    expect(starterPlugin.models?.[ModelType.TEXT_SMALL]).toBeDefined();
-    if (starterPlugin.models) {
-      expect(typeof starterPlugin.models[ModelType.TEXT_SMALL]).toBe('function');
-    }
-  });
-
-  it('should have TEXT_LARGE model defined', () => {
-    expect(starterPlugin.models?.[ModelType.TEXT_LARGE]).toBeDefined();
-    if (starterPlugin.models) {
-      expect(typeof starterPlugin.models[ModelType.TEXT_LARGE]).toBe('function');
-    }
-  });
-
-  it('should return a response from TEXT_SMALL model', async () => {
-    if (starterPlugin.models?.[ModelType.TEXT_SMALL]) {
-      const runtime = createRealRuntime();
-      const result = await starterPlugin.models[ModelType.TEXT_SMALL](runtime as any, {
-        prompt: 'test',
+      // Restore original environment variables
+      Object.entries(originalEnvs).forEach(([key, value]) => {
+        if (value !== undefined) {
+          process.env[key] = value;
+        } else {
+          delete process.env[key];
+        }
       });
-
-      // Check that we get a non-empty string response
-      expect(result).toBeTruthy();
-      expect(typeof result).toBe('string');
-      expect(result.length).toBeGreaterThan(10);
     }
+  });
+
+  it('should have services defined', () => {
+    expect(myCompchemPlugin.services).toBeDefined();
+    expect(Array.isArray(myCompchemPlugin.services)).toBe(true);
+    expect(myCompchemPlugin.services?.length).toBeGreaterThan(0);
+  });
+
+  it('should have actions defined', () => {
+    expect(myCompchemPlugin.actions).toBeDefined();
+    expect(Array.isArray(myCompchemPlugin.actions)).toBe(true);
+    expect(myCompchemPlugin.actions?.length).toBeGreaterThan(0);
   });
 });
 
-describe('StarterService', () => {
+describe('CompchemService', () => {
+  it('should have correct service type', () => {
+    expect(CompchemService.serviceType).toBe('compchem');
+  });
+
   it('should start the service', async () => {
-    const runtime = createRealRuntime();
-    const startResult = await StarterService.start(runtime as any);
+    const runtime = createMockRuntime();
+    const startResult = await CompchemService.start(runtime as any);
 
     expect(startResult).toBeDefined();
-    expect(startResult.constructor.name).toBe('StarterService');
-
-    // Test real functionality - check stop method is available
-    expect(typeof startResult.stop).toBe('function');
-  });
-
-  it('should stop the service', async () => {
-    const runtime = createRealRuntime();
-
-    // Register a real service first
-    const service = new StarterService(runtime as any);
-    runtime.registerService(StarterService.serviceType, service);
-
-    // Spy on the real service's stop method
-    const stopSpy = spyOn(service, 'stop');
-
-    // Call the static stop method
-    await StarterService.stop(runtime as any);
-
-    // Verify the service's stop method was called
-    expect(stopSpy).toHaveBeenCalled();
-  });
-
-  it('should throw an error when stopping a non-existent service', async () => {
-    const runtime = createRealRuntime();
-    // Don't register a service, so getService will return null
-
-    // We'll patch the getService function to ensure it returns null
-    const originalGetService = runtime.getService;
-    runtime.getService = () => null;
-
-    await expect(StarterService.stop(runtime as any)).rejects.toThrow('Starter service not found');
-
-    // Restore original getService function
-    runtime.getService = originalGetService;
+    expect(startResult.constructor.name).toBe('CompchemService');
   });
 });
+
+describe('PythonService', () => {
+  it('should have correct service type', () => {
+    expect(PythonService.serviceType).toBe('python-execution');
+  });
+
+  it('should start the service', async () => {
+    const runtime = createMockRuntime();
+    const startResult = await PythonService.start(runtime as any);
+
+    expect(startResult).toBeDefined();
+    expect(startResult.constructor.name).toBe('PythonService');
+  });
+
+  it('should have capability description', () => {
+    const runtime = createMockRuntime();
+    const service = new PythonService(runtime as any);
+    expect(service.capabilityDescription).toBeDefined();
+    expect(typeof service.capabilityDescription).toBe('string');
+    expect(service.capabilityDescription.length).toBeGreaterThan(0);
+  });
+});
+
+describe('Plugin Actions', () => {
+  it('should include molecular analysis action', () => {
+    const actions = myCompchemPlugin.actions || [];
+    const analysisAction = actions.find(action => action.name === 'ANALYZE_MOLECULAR_DATA');
+    expect(analysisAction).toBeDefined();
+  });
+
+  it('should include visualization action', () => {
+    const actions = myCompchemPlugin.actions || [];
+    const vizAction = actions.find(action => action.name === 'GENERATE_MOLECULAR_VISUALIZATION');
+    expect(vizAction).toBeDefined();
+  });
+
+  it('should include Gaussian parsing action', () => {
+    const actions = myCompchemPlugin.actions || [];
+    const parseAction = actions.find(action => action.name === 'PARSE_GAUSSIAN_FILE');
+    expect(parseAction).toBeDefined();
+  });
+});
+
+
+

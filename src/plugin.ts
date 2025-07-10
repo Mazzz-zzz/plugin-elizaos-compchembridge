@@ -16,21 +16,38 @@ import {
 import { z } from 'zod';
 import { StarterPluginTestSuite } from './tests';
 
+// Import Python service and actions
+import { PythonService } from './services/pythonService';
+import { analyzeMolecularDataAction } from './actions/analyzeMolecularData';
+import { generateVisualizationAction } from './actions/generateVisualization';
+import { parseGaussianFileAction } from './actions/parseGaussianFile';
+
 /**
- * Defines the configuration schema for a plugin, including the validation rules for the plugin name.
- *
- * @type {import('zod').ZodObject<{ EXAMPLE_PLUGIN_VARIABLE: import('zod').ZodString }>}
+ * Defines the configuration schema for the computational chemistry plugin
  */
 const configSchema = z.object({
-  EXAMPLE_PLUGIN_VARIABLE: z
+  PYTHON_PATH: z
     .string()
-    .min(1, 'Example plugin variable is not provided')
     .optional()
+    .default('python3')
     .transform((val) => {
       if (!val) {
-        logger.warn('Example plugin variable is not provided (this is expected)');
+        logger.info('Using default Python path: python3');
       }
-      return val;
+      return val || 'python3';
+    }),
+  PYTHON_DEBUG: z
+    .string()
+    .optional()
+    .transform((val) => {
+      return val === 'true' ? 'true' : 'false';
+    }),
+  COMPCHEM_DATA_DIR: z
+    .string()
+    .optional()
+    .default('./data')
+    .transform((val) => {
+      return val || './data';
     }),
 });
 
@@ -132,24 +149,49 @@ const helloWorldProvider: Provider = {
   },
 };
 
-export class StarterService extends Service {
-  static serviceType = 'compchem';
+export class CompchemService extends Service {
+  static serviceType = 'compchem-manager';
   capabilityDescription =
-    'Computational chemistry service for analyzing molecular structures and properties.';
-  constructor(protected runtime: IAgentRuntime) {
+    'Computational chemistry management service that coordinates molecular analysis and Python integration.';
+  
+  constructor(runtime: IAgentRuntime) {
     super(runtime);
   }
 
   static async start(runtime: IAgentRuntime) {
-    logger.info(`*** Starting computational chemistry service: ${new Date().toISOString()} ***`);
-    const service = new StarterService(runtime);
+    logger.info(`🧪 Starting computational chemistry service: ${new Date().toISOString()}`);
+    const service = new CompchemService(runtime);
+    
+    // Check if Python service is available
+    const pythonService = runtime.getService<PythonService>('python-execution');
+    if (pythonService) {
+      logger.info('✅ Python integration available');
+      
+      // Check Python environment
+      try {
+        const pythonEnv = await pythonService.checkPythonEnvironment();
+        if (pythonEnv.pythonAvailable) {
+          logger.info(`🐍 Python ${pythonEnv.pythonVersion} detected`);
+          logger.info(`📦 Available packages: ${pythonEnv.packagesAvailable.join(', ')}`);
+          if (pythonEnv.packagesMissing.length > 0) {
+            logger.warn(`⚠️  Missing packages: ${pythonEnv.packagesMissing.join(', ')}`);
+          }
+        } else {
+          logger.warn('⚠️  Python environment not available');
+        }
+      } catch (error) {
+        logger.warn('⚠️  Could not check Python environment:', error);
+      }
+    } else {
+      logger.warn('⚠️  Python service not available');
+    }
+    
     return service;
   }
 
   static async stop(runtime: IAgentRuntime) {
-    logger.info('*** Stopping computational chemistry service ***');
-    // get the service from the runtime
-    const service = runtime.getService(StarterService.serviceType);
+    logger.info('🧪 Stopping computational chemistry service');
+    const service = runtime.getService(CompchemService.serviceType);
     if (!service) {
       throw new Error('Computational chemistry service not found');
     }
@@ -157,18 +199,20 @@ export class StarterService extends Service {
   }
 
   async stop() {
-    logger.info('*** Computational chemistry service stopped ***');
+    logger.info('🧪 Computational chemistry service stopped');
   }
 }
 
 export const myCompchemPlugin: Plugin = {
-  name: 'my-compchem-plugin',
-  description: 'Computational chemistry plugin for elizaOS',
+  name: 'my-compchem-plugin-v2',
+  description: 'Advanced computational chemistry plugin for ElizaOS with Python integration',
   config: {
-    EXAMPLE_PLUGIN_VARIABLE: process.env.EXAMPLE_PLUGIN_VARIABLE,
+    PYTHON_PATH: process.env.PYTHON_PATH,
+    PYTHON_DEBUG: process.env.PYTHON_DEBUG,
+    COMPCHEM_DATA_DIR: process.env.COMPCHEM_DATA_DIR,
   },
   async init(config: Record<string, string>) {
-    logger.info('*** Initializing computational chemistry plugin ***');
+    logger.info('🧪 Initializing computational chemistry plugin v2');
     try {
       const validatedConfig = await configSchema.parseAsync(config);
 
@@ -176,6 +220,10 @@ export const myCompchemPlugin: Plugin = {
       for (const [key, value] of Object.entries(validatedConfig)) {
         if (value) process.env[key] = value;
       }
+      
+      logger.info('✅ Plugin configuration validated successfully');
+      logger.info(`🐍 Python path: ${validatedConfig.PYTHON_PATH}`);
+      logger.info(`📁 Data directory: ${validatedConfig.COMPCHEM_DATA_DIR}`);
     } catch (error) {
       if (error instanceof z.ZodError) {
         throw new Error(
@@ -264,8 +312,8 @@ export const myCompchemPlugin: Plugin = {
       },
     ],
   },
-  services: [StarterService],
-  actions: [helloWorldAction],
+  services: [PythonService, CompchemService],
+  actions: [helloWorldAction, analyzeMolecularDataAction, generateVisualizationAction, parseGaussianFileAction],
   providers: [helloWorldProvider],
   tests: [StarterPluginTestSuite],
   // dependencies: ['@elizaos/plugin-knowledge'], <--- plugin dependecies go here (if requires another plugin)
