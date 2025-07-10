@@ -8,8 +8,8 @@ var __require = /* @__PURE__ */ ((x) => typeof require !== "undefined" ? require
 // src/plugin.ts
 import {
   ModelType,
-  Service as Service2,
-  logger as logger7
+  Service as Service3,
+  logger as logger9
 } from "@elizaos/core";
 import { z } from "zod";
 
@@ -630,8 +630,241 @@ var PythonService = class _PythonService extends Service {
   }
 };
 
+// src/services/autoKnowledgeService.ts
+import { Service as Service2, logger as logger3 } from "@elizaos/core";
+import { promises as fs3 } from "fs";
+import { watch } from "fs";
+import * as path3 from "path";
+var AutoKnowledgeService = class _AutoKnowledgeService extends Service2 {
+  static serviceType = "auto-knowledge";
+  capabilityDescription = "Automatically monitors data/examples directory and builds knowledge graph from Gaussian files";
+  knowledgeGraphPath;
+  watchedDirectory;
+  processedFiles = /* @__PURE__ */ new Set();
+  isInitialized = false;
+  fileWatcher = null;
+  constructor(runtime) {
+    super(runtime);
+    this.knowledgeGraphPath = "";
+    this.watchedDirectory = "";
+  }
+  static async start(runtime) {
+    const service = new _AutoKnowledgeService(runtime);
+    await service.initialize();
+    logger3.info("\u{1F9E0} Auto Knowledge Service started - watching data/examples/ for Gaussian files");
+    return service;
+  }
+  async initialize() {
+    if (this.isInitialized) return;
+    this.knowledgeGraphPath = path3.join(process.cwd(), "data", "auto-knowledge-graph.ttl");
+    this.watchedDirectory = path3.join(process.cwd(), "data", "examples");
+    try {
+      await fs3.mkdir(path3.dirname(this.knowledgeGraphPath), { recursive: true });
+      await fs3.mkdir(this.watchedDirectory, { recursive: true });
+      await this.loadOrCreateKnowledgeGraph();
+      await this.scanExistingFiles();
+      this.startFileWatcher();
+      this.isInitialized = true;
+      logger3.info(`\u{1F4CA} Auto knowledge graph: ${this.knowledgeGraphPath}`);
+      logger3.info(`\u{1F440} Watching directory: ${this.watchedDirectory}`);
+    } catch (error) {
+      logger3.error("\u274C Failed to initialize Auto Knowledge Service:", error);
+    }
+  }
+  static async stop(runtime) {
+    const service = runtime.getService("auto-knowledge");
+    if (service) {
+      service.stopWatching();
+    }
+    logger3.info("\u{1F9E0} Auto Knowledge Service stopped");
+  }
+  async stop() {
+    this.stopWatching();
+  }
+  stopWatching() {
+    if (this.fileWatcher) {
+      this.fileWatcher.close();
+      this.fileWatcher = null;
+    }
+  }
+  async loadOrCreateKnowledgeGraph() {
+    try {
+      const stats = await fs3.stat(this.knowledgeGraphPath);
+      if (stats.isFile()) {
+        logger3.info("\u{1F4D6} Loading existing auto knowledge graph...");
+        const content = await fs3.readFile(this.knowledgeGraphPath, "utf-8");
+        const fileMatches = content.match(/# File: (.+\.log)/g);
+        if (fileMatches) {
+          for (const match of fileMatches) {
+            const filename = match.replace("# File: ", "");
+            this.processedFiles.add(filename);
+          }
+        }
+        logger3.info(`\u{1F4CA} Found ${this.processedFiles.size} previously processed files`);
+      }
+    } catch (error) {
+      logger3.info("\u{1F195} Creating new auto knowledge graph...");
+      await this.createInitialKnowledgeGraph();
+    }
+  }
+  async createInitialKnowledgeGraph() {
+    const initialContent = `# Auto Knowledge Graph - ElizaOS Plugin v2
+# Created: ${(/* @__PURE__ */ new Date()).toISOString()}
+# Files are automatically processed when added to data/examples/
+
+@prefix ex: <https://example.org/auto#> .
+@prefix ontocompchem: <http://www.theworldavatar.com/ontology/ontocompchem/> .
+@prefix cheminf: <http://semanticscience.org/resource/> .
+
+`;
+    await fs3.writeFile(this.knowledgeGraphPath, initialContent, "utf-8");
+    logger3.info("\u2705 Auto knowledge graph created");
+  }
+  // Automatic file monitoring (like v1)
+  async scanExistingFiles() {
+    try {
+      const files = await fs3.readdir(this.watchedDirectory);
+      const gaussianFiles = files.filter(
+        (file) => file.toLowerCase().endsWith(".log") || file.toLowerCase().endsWith(".out")
+      );
+      logger3.info(`\u{1F50D} Found ${gaussianFiles.length} existing Gaussian files`);
+      for (const file of gaussianFiles) {
+        const filePath = path3.join(this.watchedDirectory, file);
+        if (!this.processedFiles.has(file)) {
+          await this.processFileAutomatically(filePath);
+        }
+      }
+    } catch (error) {
+      logger3.warn("\u26A0\uFE0F  Could not scan existing files:", error.message);
+    }
+  }
+  startFileWatcher() {
+    try {
+      this.fileWatcher = watch(this.watchedDirectory, { recursive: false }, async (eventType, filename) => {
+        if (!filename) return;
+        if (!filename.toLowerCase().endsWith(".log") && !filename.toLowerCase().endsWith(".out")) {
+          return;
+        }
+        const filePath = path3.join(this.watchedDirectory, filename);
+        if (eventType === "rename" || eventType === "change") {
+          try {
+            await fs3.access(filePath);
+            if (this.processedFiles.has(filename)) {
+              return;
+            }
+            logger3.info(`\u{1F195} New Gaussian file detected: ${filename}`);
+            await this.processFileAutomatically(filePath);
+          } catch (error) {
+            logger3.debug(`File no longer accessible: ${filename}`);
+          }
+        }
+      });
+      logger3.info("\u{1F440} File watcher started");
+    } catch (error) {
+      logger3.warn("\u26A0\uFE0F  Could not start file watcher:", error.message);
+    }
+  }
+  async processFileAutomatically(filePath) {
+    const filename = path3.basename(filePath);
+    try {
+      const pythonService = this.runtime.getService("python-execution");
+      if (!pythonService) {
+        logger3.warn("\u26A0\uFE0F  Python service not available, skipping file processing");
+        return;
+      }
+      logger3.info(`\u2699\uFE0F  Auto-processing: ${filename}`);
+      const metadata = {
+        filename,
+        timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+        source: "auto-monitor",
+        parser: "cclib"
+      };
+      logger3.info(`\u{1F50D} Calling Python service to parse ${filename}...`);
+      const rdfResult = await pythonService.parseGaussianFile(filePath, metadata, "turtle");
+      logger3.info(`\u{1F4DD} Python service returned:`, {
+        type: typeof rdfResult,
+        isString: typeof rdfResult === "string",
+        hasError: rdfResult && typeof rdfResult === "object" && "error" in rdfResult,
+        length: typeof rdfResult === "string" ? rdfResult.length : "N/A",
+        preview: typeof rdfResult === "string" ? rdfResult.substring(0, 100) + "..." : rdfResult
+      });
+      let rdfContent = null;
+      let success = false;
+      if (typeof rdfResult === "string") {
+        rdfContent = rdfResult;
+        success = true;
+      } else if (rdfResult && typeof rdfResult === "object") {
+        if (rdfResult.error) {
+          logger3.error(`\u274C Python parsing error for ${filename}: ${rdfResult.error}`);
+        } else if (rdfResult.rdf && typeof rdfResult.rdf === "string") {
+          rdfContent = rdfResult.rdf;
+          success = rdfResult.success !== false;
+        } else {
+          logger3.error(`\u274C Unexpected object format for ${filename}:`, rdfResult);
+        }
+      } else {
+        logger3.error(`\u274C No result returned from Python service for ${filename}`);
+      }
+      if (success && rdfContent && rdfContent.trim().length > 0) {
+        const header = `
+# File: ${filename} (auto-processed ${(/* @__PURE__ */ new Date()).toISOString()})
+`;
+        const contentToAppend = header + rdfContent + "\n";
+        await fs3.appendFile(this.knowledgeGraphPath, contentToAppend, "utf-8");
+        this.processedFiles.add(filename);
+        const tripleCount = (rdfContent.match(/\./g) || []).length;
+        logger3.info(`\u2705 Auto-added ${tripleCount} triples from ${filename}`);
+      } else {
+        logger3.error(`\u274C Could not parse ${filename}: Invalid or empty RDF content`);
+      }
+    } catch (error) {
+      logger3.error(`\u274C Error auto-processing ${filename}:`, {
+        message: error.message,
+        stack: error.stack,
+        name: error.name,
+        fullError: error
+      });
+    }
+  }
+  // Simple query method
+  async getStats() {
+    try {
+      const content = await fs3.readFile(this.knowledgeGraphPath, "utf-8");
+      return {
+        totalFiles: this.processedFiles.size,
+        filesList: Array.from(this.processedFiles),
+        molecules: (content.match(/ontocompchem:QuantumCalculation/g) || []).length,
+        scfEnergies: (content.match(/ontocompchem:SCFEnergy/g) || []).length,
+        atoms: (content.match(/cheminf:Atom/g) || []).length,
+        lastUpdate: (/* @__PURE__ */ new Date()).toISOString(),
+        knowledgeGraphPath: this.knowledgeGraphPath,
+        watchedDirectory: this.watchedDirectory
+      };
+    } catch (error) {
+      return { error: error.message };
+    }
+  }
+  async searchKnowledgeGraph(query) {
+    try {
+      const content = await fs3.readFile(this.knowledgeGraphPath, "utf-8");
+      const lines = content.split("\n");
+      const results = lines.filter((line) => line.toLowerCase().includes(query.toLowerCase())).slice(0, 10);
+      return {
+        query,
+        matches: results.length,
+        results
+      };
+    } catch (error) {
+      return { error: error.message };
+    }
+  }
+  isFileProcessed(filename) {
+    return this.processedFiles.has(filename);
+  }
+};
+
 // src/actions/analyzeMolecularData.ts
-import { logger as logger3 } from "@elizaos/core";
+import { logger as logger4 } from "@elizaos/core";
 var analyzeMolecularDataAction = {
   name: "ANALYZE_MOLECULAR_DATA",
   similes: ["ANALYZE_MOLECULE", "MOLECULAR_ANALYSIS", "COMPUTE_PROPERTIES"],
@@ -655,7 +888,7 @@ var analyzeMolecularDataAction = {
   },
   handler: async (runtime, message, _state, _options, callback, _responses) => {
     try {
-      logger3.info("\u{1F9EA} Analyzing molecular data...");
+      logger4.info("\u{1F9EA} Analyzing molecular data...");
       const pythonService = runtime.getService("python-execution");
       if (!pythonService) {
         throw new Error("Python service not available");
@@ -761,7 +994,7 @@ var analyzeMolecularDataAction = {
       if (callback) await callback(responseContent);
       return responseContent;
     } catch (error) {
-      logger3.error("Error in molecular data analysis:", error);
+      logger4.error("Error in molecular data analysis:", error);
       const errorContent = {
         text: `\u274C Failed to analyze molecular data: ${error instanceof Error ? error.message : "Unknown error"}`,
         actions: ["ANALYZE_MOLECULAR_DATA"],
@@ -825,7 +1058,7 @@ function extractMolecularDataFromMessage(message) {
 }
 
 // src/actions/generateVisualization.ts
-import { logger as logger4 } from "@elizaos/core";
+import { logger as logger5 } from "@elizaos/core";
 var generateVisualizationAction = {
   name: "GENERATE_MOLECULAR_VISUALIZATION",
   similes: ["VISUALIZE_MOLECULE", "PLOT_STRUCTURE", "MOLECULAR_VIZ", "SHOW_MOLECULE"],
@@ -861,7 +1094,7 @@ var generateVisualizationAction = {
   },
   handler: async (runtime, message, _state, _options, callback, _responses) => {
     try {
-      logger4.info("\u{1F3A8} Generating molecular visualization...");
+      logger5.info("\u{1F3A8} Generating molecular visualization...");
       const pythonService = runtime.getService("python-execution");
       if (!pythonService) {
         throw new Error("Python service not available");
@@ -960,7 +1193,7 @@ var generateVisualizationAction = {
       if (callback) await callback(responseContent);
       return responseContent;
     } catch (error) {
-      logger4.error("Error in molecular visualization:", error);
+      logger5.error("Error in molecular visualization:", error);
       const errorContent = {
         text: `\u274C Failed to generate molecular visualization: ${error instanceof Error ? error.message : "Unknown error"}`,
         actions: ["GENERATE_MOLECULAR_VISUALIZATION"],
@@ -1068,12 +1301,12 @@ function calculateBounds(atoms) {
 }
 
 // src/actions/parseGaussianFile.ts
-import { logger as logger5 } from "@elizaos/core";
-import * as path3 from "path";
-import * as fs3 from "fs";
+import { logger as logger6 } from "@elizaos/core";
+import * as path4 from "path";
+import * as fs4 from "fs";
 import { fileURLToPath as fileURLToPath3 } from "url";
 var __filename3 = fileURLToPath3(import.meta.url);
-var __dirname3 = path3.dirname(__filename3);
+var __dirname3 = path4.dirname(__filename3);
 var parseGaussianFileAction = {
   name: "PARSE_GAUSSIAN_FILE",
   similes: ["PARSE_GAUSSIAN", "ANALYZE_GAUSSIAN_LOG", "READ_GAUSSIAN_FILE"],
@@ -1098,7 +1331,7 @@ var parseGaussianFileAction = {
   },
   handler: async (runtime, message, _state, _options, callback, _responses) => {
     try {
-      logger5.info("\u{1F9EC} Parsing Gaussian file...");
+      logger6.info("\u{1F9EC} Parsing Gaussian file...");
       const pythonService = runtime.getService("python-execution");
       if (!pythonService) {
         throw new Error("Python service not available");
@@ -1122,24 +1355,24 @@ var parseGaussianFileAction = {
         if (callback) await callback(errorContent);
         return errorContent;
       }
-      logger5.info(`\u{1F50D} Attempting to extract file path from message: "${message.content.text}"`);
+      logger6.info(`\u{1F50D} Attempting to extract file path from message: "${message.content.text}"`);
       const extractedPath = extractFilePathFromMessage(message);
-      logger5.info(`\u{1F4DD} Extracted path result: ${extractedPath}`);
+      logger6.info(`\u{1F4DD} Extracted path result: ${extractedPath}`);
       let filePath = extractedPath;
       if (!filePath) {
-        logger5.info("\u{1F50D} No file path extracted from message, looking for example files...");
+        logger6.info("\u{1F50D} No file path extracted from message, looking for example files...");
         filePath = findExampleLogFile();
-        logger5.info(`\u{1F4C1} Example file search result: ${filePath}`);
+        logger6.info(`\u{1F4C1} Example file search result: ${filePath}`);
       }
       if (!filePath) {
         const currentDir = process.cwd();
-        logger5.error(`\u274C No file found. CWD: ${currentDir}, __dirname: ${__dirname3}`);
-        const testDir = path3.join(currentDir, "data", "examples");
+        logger6.error(`\u274C No file found. CWD: ${currentDir}, __dirname: ${__dirname3}`);
+        const testDir = path4.join(currentDir, "data", "examples");
         try {
           const files = __require("fs").readdirSync(testDir);
-          logger5.info(`\u{1F4C2} Files in ${testDir}: ${files.join(", ")}`);
+          logger6.info(`\u{1F4C2} Files in ${testDir}: ${files.join(", ")}`);
         } catch (error) {
-          logger5.error(`\u274C Cannot read directory ${testDir}: ${error.message}`);
+          logger6.error(`\u274C Cannot read directory ${testDir}: ${error.message}`);
         }
         const errorContent = {
           text: `\u274C No Gaussian log file specified. Please provide a file path or add log files to the data/examples/ directory.
@@ -1147,7 +1380,7 @@ var parseGaussianFileAction = {
 \u{1F50D} **Current working directory:** ${currentDir}
 
 \u{1F4C1} **Looking for files in:**
-\u2022 ${path3.join(currentDir, "data", "examples")}
+\u2022 ${path4.join(currentDir, "data", "examples")}
 \u2022 ./data/examples/
 \u2022 Plugin directory data/examples/
 
@@ -1170,7 +1403,7 @@ var parseGaussianFileAction = {
       let responseText = `\u{1F9EC} **Gaussian File Analysis Complete**
 
 `;
-      responseText += `**File:** ${path3.basename(filePath)}
+      responseText += `**File:** ${path4.basename(filePath)}
 `;
       if (parseResult.metadata) {
         responseText += `**Parser:** cclib v${parseResult.metadata.cclib_version}
@@ -1267,6 +1500,11 @@ var parseGaussianFileAction = {
       if (availableProperties.length > 8) {
         responseText += ` ... (${availableProperties.length - 8} more)`;
       }
+      responseText += `
+
+\u{1F9E0} **Auto Knowledge Graph:** Files in \`data/examples/\` are automatically processed into a persistent knowledge base`;
+      responseText += `
+\u{1F4A1} *Try: "Show knowledge stats" to see the auto-built knowledge base*`;
       const responseContent = {
         text: responseText,
         actions: ["PARSE_GAUSSIAN_FILE"],
@@ -1275,7 +1513,7 @@ var parseGaussianFileAction = {
       if (callback) await callback(responseContent);
       return responseContent;
     } catch (error) {
-      logger5.error("Error in Gaussian file parsing:", error);
+      logger6.error("Error in Gaussian file parsing:", error);
       const errorContent = {
         text: `\u274C Failed to parse Gaussian file: ${error instanceof Error ? error.message : "Unknown error"}`,
         actions: ["PARSE_GAUSSIAN_FILE"],
@@ -1320,7 +1558,7 @@ var parseGaussianFileAction = {
 };
 function extractFilePathFromMessage(message) {
   const text = message.content.text;
-  logger5.info(`\u{1F50D} extractFilePathFromMessage: text = "${text}"`);
+  logger6.info(`\u{1F50D} extractFilePathFromMessage: text = "${text}"`);
   if (!text) return null;
   const filePatterns = [
     /(?:file:|path:)?\s*([^\s]+\.(?:log|out))/gi,
@@ -1331,76 +1569,76 @@ function extractFilePathFromMessage(message) {
   for (let i = 0; i < filePatterns.length; i++) {
     const pattern = filePatterns[i];
     const match = text.match(pattern);
-    logger5.info(`\u{1F50D} Pattern ${i + 1}: ${pattern} -> match: ${match ? match[0] : "none"}`);
+    logger6.info(`\u{1F50D} Pattern ${i + 1}: ${pattern} -> match: ${match ? match[0] : "none"}`);
     if (match) {
       let filePath = match[1] || match[0];
       filePath = filePath.replace(/^(file:|path:)/i, "").trim();
-      logger5.info(`\u{1F4DD} Cleaned filename: "${filePath}"`);
+      logger6.info(`\u{1F4DD} Cleaned filename: "${filePath}"`);
       if (!filePath.includes("/") && !filePath.includes("\\")) {
         const possibleDataDirs = [
-          path3.join(process.cwd(), "data", "examples"),
-          path3.join(__dirname3, "..", "..", "data", "examples"),
-          path3.join(__dirname3, "..", "..", "..", "data", "examples"),
-          path3.join(process.cwd(), "plugins", "my-compchem-plugin-v2", "data", "examples"),
+          path4.join(process.cwd(), "data", "examples"),
+          path4.join(__dirname3, "..", "..", "data", "examples"),
+          path4.join(__dirname3, "..", "..", "..", "data", "examples"),
+          path4.join(process.cwd(), "plugins", "my-compchem-plugin-v2", "data", "examples"),
           "./data/examples"
         ];
         for (const dataDir of possibleDataDirs) {
-          const fullPath = path3.join(dataDir, filePath);
+          const fullPath = path4.join(dataDir, filePath);
           try {
-            fs3.accessSync(fullPath, fs3.constants.F_OK);
-            logger5.info(`\u2705 Found file: ${fullPath}`);
+            fs4.accessSync(fullPath, fs4.constants.F_OK);
+            logger6.info(`\u2705 Found file: ${fullPath}`);
             return fullPath;
           } catch {
-            logger5.debug(`\u274C Not found: ${fullPath}`);
+            logger6.debug(`\u274C Not found: ${fullPath}`);
           }
         }
-        const defaultPath = path3.join(process.cwd(), "data", "examples", filePath);
-        logger5.info(`\u{1F504} Returning default path: ${defaultPath}`);
+        const defaultPath = path4.join(process.cwd(), "data", "examples", filePath);
+        logger6.info(`\u{1F504} Returning default path: ${defaultPath}`);
         return defaultPath;
       }
       return filePath;
     }
   }
-  logger5.info("\u274C No file path patterns matched");
+  logger6.info("\u274C No file path patterns matched");
   return null;
 }
 function findExampleLogFile() {
   const possibleDataDirs = [
     // Current working directory
-    path3.join(process.cwd(), "data", "examples"),
+    path4.join(process.cwd(), "data", "examples"),
     // Plugin directory (if running from plugin root)
-    path3.join(__dirname3, "..", "..", "data", "examples"),
+    path4.join(__dirname3, "..", "..", "data", "examples"),
     // Relative to dist directory (if running from built plugin)
-    path3.join(__dirname3, "..", "..", "..", "data", "examples"),
+    path4.join(__dirname3, "..", "..", "..", "data", "examples"),
     // ElizaOS plugin directory structure
-    path3.join(process.cwd(), "plugins", "my-compchem-plugin-v2", "data", "examples"),
+    path4.join(process.cwd(), "plugins", "my-compchem-plugin-v2", "data", "examples"),
     // Direct relative path
     "./data/examples"
   ];
   const exampleFiles = ["lactone.log", "TolueneEnergy.log"];
   for (const dataDir of possibleDataDirs) {
     for (const filename of exampleFiles) {
-      const filePath = path3.join(dataDir, filename);
+      const filePath = path4.join(dataDir, filename);
       try {
-        fs3.accessSync(filePath, fs3.constants.F_OK);
-        logger5.info(`\u2705 Found example file: ${filePath}`);
+        fs4.accessSync(filePath, fs4.constants.F_OK);
+        logger6.info(`\u2705 Found example file: ${filePath}`);
         return filePath;
       } catch (error) {
-        logger5.debug(`\u274C File not found: ${filePath}`);
+        logger6.debug(`\u274C File not found: ${filePath}`);
       }
     }
   }
-  logger5.warn("\u274C No example log files found in any location");
+  logger6.warn("\u274C No example log files found in any location");
   return null;
 }
 
 // src/actions/diagnostics.ts
-import { logger as logger6 } from "@elizaos/core";
-import * as path4 from "path";
-import * as fs4 from "fs";
+import { logger as logger7 } from "@elizaos/core";
+import * as path5 from "path";
+import * as fs5 from "fs";
 import { fileURLToPath as fileURLToPath4 } from "url";
 var __filename4 = fileURLToPath4(import.meta.url);
-var __dirname4 = path4.dirname(__filename4);
+var __dirname4 = path5.dirname(__filename4);
 var diagnosticsAction = {
   name: "COMPCHEM_DIAGNOSTICS",
   similes: ["DIAGNOSTICS", "DEBUG_PATHS", "CHECK_ENVIRONMENT", "TROUBLESHOOT"],
@@ -1420,7 +1658,7 @@ var diagnosticsAction = {
   },
   handler: async (runtime, message, _state, _options, callback, _responses) => {
     try {
-      logger6.info("\u{1F50D} Running computational chemistry diagnostics...");
+      logger7.info("\u{1F50D} Running computational chemistry diagnostics...");
       let responseText = "\u{1F50D} **Computational Chemistry Plugin Diagnostics**\n\n";
       const currentDir = process.cwd();
       responseText += `\u{1F4C1} **Current Working Directory:**
@@ -1429,19 +1667,19 @@ var diagnosticsAction = {
 `;
       responseText += "\u{1F4CA} **Data Files Check:**\n";
       const possibleDataDirs = [
-        path4.join(currentDir, "data", "examples"),
-        path4.join(__dirname4, "..", "..", "data", "examples"),
-        path4.join(__dirname4, "..", "..", "..", "data", "examples"),
-        path4.join(currentDir, "plugins", "my-compchem-plugin-v2", "data", "examples"),
+        path5.join(currentDir, "data", "examples"),
+        path5.join(__dirname4, "..", "..", "data", "examples"),
+        path5.join(__dirname4, "..", "..", "..", "data", "examples"),
+        path5.join(currentDir, "plugins", "my-compchem-plugin-v2", "data", "examples"),
         "./data/examples"
       ];
       const dataFiles = ["lactone.log", "TolueneEnergy.log"];
       let foundDataFiles = false;
       for (const dataDir2 of possibleDataDirs) {
         for (const filename of dataFiles) {
-          const filePath = path4.join(dataDir2, filename);
+          const filePath = path5.join(dataDir2, filename);
           try {
-            fs4.accessSync(filePath);
+            fs5.accessSync(filePath);
             responseText += `  \u2705 Found: \`${filePath}\`
 `;
             foundDataFiles = true;
@@ -1457,18 +1695,18 @@ var diagnosticsAction = {
       responseText += "\n\u{1F40D} **Python Scripts Check:**\n";
       const scriptNames = ["parse_gaussian_cclib.py", "molecular_analyzer.py", "plot_gaussian_analysis.py"];
       const possibleScriptDirs = [
-        path4.join(currentDir, "py"),
-        path4.join(__dirname4, "..", "..", "py"),
-        path4.join(__dirname4, "..", "..", "..", "py"),
-        path4.join(currentDir, "plugins", "my-compchem-plugin-v2", "py"),
+        path5.join(currentDir, "py"),
+        path5.join(__dirname4, "..", "..", "py"),
+        path5.join(__dirname4, "..", "..", "..", "py"),
+        path5.join(currentDir, "plugins", "my-compchem-plugin-v2", "py"),
         "./py"
       ];
       let foundScripts = false;
       for (const scriptDir of possibleScriptDirs) {
         for (const scriptName of scriptNames) {
-          const scriptPath = path4.join(scriptDir, scriptName);
+          const scriptPath = path5.join(scriptDir, scriptName);
           try {
-            fs4.accessSync(scriptPath);
+            fs5.accessSync(scriptPath);
             responseText += `  \u2705 Found: \`${scriptPath}\`
 `;
             foundScripts = true;
@@ -1535,11 +1773,11 @@ var diagnosticsAction = {
 `;
       responseText += "\n\u{1F4A1} **Recommendations:**\n";
       if (!foundDataFiles) {
-        responseText += `  \u2022 Copy log files to: \`${path4.join(currentDir, "data", "examples")}\`
+        responseText += `  \u2022 Copy log files to: \`${path5.join(currentDir, "data", "examples")}\`
 `;
       }
       if (!foundScripts) {
-        responseText += `  \u2022 Copy Python scripts to: \`${path4.join(currentDir, "py")}\`
+        responseText += `  \u2022 Copy Python scripts to: \`${path5.join(currentDir, "py")}\`
 `;
       }
       responseText += `  \u2022 Try: "Parse the lactone.log file"
@@ -1554,7 +1792,7 @@ var diagnosticsAction = {
       if (callback) await callback(responseContent);
       return responseContent;
     } catch (error) {
-      logger6.error("Error in diagnostics:", error);
+      logger7.error("Error in diagnostics:", error);
       const errorContent = {
         text: `\u274C Diagnostics failed: ${error instanceof Error ? error.message : "Unknown error"}`,
         actions: ["COMPCHEM_DIAGNOSTICS"],
@@ -1583,11 +1821,134 @@ var diagnosticsAction = {
   ]
 };
 
+// src/actions/autoKnowledgeAction.ts
+import {
+  logger as logger8
+} from "@elizaos/core";
+var autoKnowledgeAction = {
+  name: "AUTO_KNOWLEDGE_STATS",
+  similes: [
+    "KNOWLEDGE_STATS",
+    "AUTO_STATS",
+    "SHOW_KNOWLEDGE",
+    "KNOWLEDGE_BASE",
+    "HOW_MANY_MOLECULES"
+  ],
+  description: "Show statistics from the automatic knowledge graph that builds from files in data/examples/",
+  validate: async (_runtime, message, _state) => {
+    const text = message.content.text?.toLowerCase() || "";
+    const keywords = [
+      "knowledge",
+      "stats",
+      "statistics",
+      "how many",
+      "molecules",
+      "auto",
+      "automatic",
+      "processed",
+      "files",
+      "knowledge base"
+    ];
+    return keywords.some((keyword) => text.includes(keyword));
+  },
+  handler: async (runtime, message, _state, _options, callback, _responses) => {
+    try {
+      logger8.info("Handling AUTO_KNOWLEDGE_STATS action");
+      const autoService = runtime.getService("auto-knowledge");
+      if (!autoService) {
+        const errorContent = {
+          text: "\u274C Auto knowledge service is not running. The service automatically monitors data/examples/ for Gaussian files.",
+          actions: ["AUTO_KNOWLEDGE_STATS"],
+          source: message.content.source
+        };
+        if (callback) await callback(errorContent);
+        return errorContent;
+      }
+      const stats = await autoService.getStats();
+      if (stats.error) {
+        const errorContent = {
+          text: `\u274C Error getting knowledge stats: ${stats.error}`,
+          actions: ["AUTO_KNOWLEDGE_STATS"],
+          source: message.content.source
+        };
+        if (callback) await callback(errorContent);
+        return errorContent;
+      }
+      const responseText = `\u{1F9E0} **Automatic Knowledge Graph Status**
+
+**\u{1F4C1} Monitoring:** \`${stats.watchedDirectory}\`
+**\u{1F4CA} Knowledge Graph:** \`${stats.knowledgeGraphPath}\`
+
+**\u{1F4C8} Current Statistics:**
+\u2022 **Files Processed:** ${stats.totalFiles}
+\u2022 **Molecules:** ${stats.molecules}
+\u2022 **SCF Energies:** ${stats.scfEnergies}  
+\u2022 **Atoms:** ${stats.atoms}
+\u2022 **Last Update:** ${new Date(stats.lastUpdate).toLocaleString()}
+
+${stats.totalFiles > 0 ? `**\u{1F4C4} Processed Files:**
+${stats.filesList.map((file) => `\u2022 ${file}`).join("\n")}` : "**\u{1F4C4} No files processed yet**"}
+
+\u{1F4A1} **How it works:** Just copy \`.log\` or \`.out\` files to \`data/examples/\` and they'll be automatically processed into the knowledge graph!
+
+${stats.totalFiles === 0 ? "\n\u{1F680} **Get started:** Copy some Gaussian log files to `data/examples/` to see the knowledge graph grow automatically!" : '\n\u{1F50D} **Search tip:** Ask me to "search for energy" or "find molecules" to explore the knowledge base!'}`;
+      const responseContent = {
+        text: responseText,
+        actions: ["AUTO_KNOWLEDGE_STATS"],
+        source: message.content.source
+      };
+      if (callback) await callback(responseContent);
+      return responseContent;
+    } catch (error) {
+      logger8.error("Error in AUTO_KNOWLEDGE_STATS action:", error);
+      const errorContent = {
+        text: `\u274C Failed to get knowledge stats: ${error instanceof Error ? error.message : "Unknown error"}`,
+        actions: ["AUTO_KNOWLEDGE_STATS"],
+        source: message.content.source
+      };
+      if (callback) await callback(errorContent);
+      return errorContent;
+    }
+  },
+  examples: [
+    [
+      {
+        name: "{{user1}}",
+        content: {
+          text: "Show me knowledge graph statistics"
+        }
+      },
+      {
+        name: "{{user2}}",
+        content: {
+          text: "\u{1F9E0} **Automatic Knowledge Graph Status**\n\n**\u{1F4C1} Monitoring:** `data/examples/`\n**\u{1F4CA} Knowledge Graph:** `data/auto-knowledge-graph.ttl`\n\n**\u{1F4C8} Current Statistics:**\n\u2022 **Files Processed:** 2\n\u2022 **Molecules:** 2\n\u2022 **SCF Energies:** 2\n\u2022 **Atoms:** 30\n\u2022 **Last Update:** 1/15/2024, 10:30:00 AM\n\n**\u{1F4C4} Processed Files:**\n\u2022 lactone.log\n\u2022 TolueneEnergy.log\n\n\u{1F4A1} **How it works:** Just copy `.log` or `.out` files to `data/examples/` and they'll be automatically processed into the knowledge graph!",
+          actions: ["AUTO_KNOWLEDGE_STATS"]
+        }
+      }
+    ],
+    [
+      {
+        name: "{{user1}}",
+        content: {
+          text: "How many molecules do we have?"
+        }
+      },
+      {
+        name: "{{user2}}",
+        content: {
+          text: '\u{1F9E0} **Automatic Knowledge Graph Status**\n\n**\u{1F4C8} Current Statistics:**\n\u2022 **Files Processed:** 3\n\u2022 **Molecules:** 3\n\u2022 **SCF Energies:** 3\n\u2022 **Atoms:** 45\n\n**\u{1F4C4} Processed Files:**\n\u2022 lactone.log\n\u2022 TolueneEnergy.log\n\u2022 example.log\n\n\u{1F50D} **Search tip:** Ask me to "search for energy" or "find molecules" to explore the knowledge base!',
+          actions: ["AUTO_KNOWLEDGE_STATS"]
+        }
+      }
+    ]
+  ]
+};
+
 // src/plugin.ts
 var configSchema = z.object({
   PYTHON_PATH: z.string().optional().default("python3").transform((val) => {
     if (!val) {
-      logger7.info("Using default Python path: python3");
+      logger9.info("Using default Python path: python3");
     }
     return val || "python3";
   }),
@@ -1607,7 +1968,7 @@ var helloWorldAction = {
   },
   handler: async (_runtime, message, _state, _options, callback, _responses) => {
     try {
-      logger7.info("Handling HELLO_WORLD action");
+      logger9.info("Handling HELLO_WORLD action");
       const responseContent = {
         text: "hello world!",
         actions: ["HELLO_WORLD"],
@@ -1618,7 +1979,7 @@ var helloWorldAction = {
       }
       return responseContent;
     } catch (error) {
-      logger7.error("Error in HELLO_WORLD action:", error);
+      logger9.error("Error in HELLO_WORLD action:", error);
       throw error;
     }
   },
@@ -1651,39 +2012,39 @@ var helloWorldProvider = {
     };
   }
 };
-var CompchemService = class _CompchemService extends Service2 {
+var CompchemService = class _CompchemService extends Service3 {
   static serviceType = "compchem-manager";
   capabilityDescription = "Computational chemistry management service that coordinates molecular analysis and Python integration.";
   constructor(runtime) {
     super(runtime);
   }
   static async start(runtime) {
-    logger7.info(`\u{1F9EA} Starting computational chemistry service: ${(/* @__PURE__ */ new Date()).toISOString()}`);
+    logger9.info(`\u{1F9EA} Starting computational chemistry service: ${(/* @__PURE__ */ new Date()).toISOString()}`);
     const service = new _CompchemService(runtime);
     const pythonService = runtime.getService("python-execution");
     if (pythonService) {
-      logger7.info("\u2705 Python integration available");
+      logger9.info("\u2705 Python integration available");
       try {
         const pythonEnv = await pythonService.checkPythonEnvironment();
         if (pythonEnv.pythonAvailable) {
-          logger7.info(`\u{1F40D} Python ${pythonEnv.pythonVersion} detected`);
-          logger7.info(`\u{1F4E6} Available packages: ${pythonEnv.packagesAvailable.join(", ")}`);
+          logger9.info(`\u{1F40D} Python ${pythonEnv.pythonVersion} detected`);
+          logger9.info(`\u{1F4E6} Available packages: ${pythonEnv.packagesAvailable.join(", ")}`);
           if (pythonEnv.packagesMissing.length > 0) {
-            logger7.warn(`\u26A0\uFE0F  Missing packages: ${pythonEnv.packagesMissing.join(", ")}`);
+            logger9.warn(`\u26A0\uFE0F  Missing packages: ${pythonEnv.packagesMissing.join(", ")}`);
           }
         } else {
-          logger7.warn("\u26A0\uFE0F  Python environment not available");
+          logger9.warn("\u26A0\uFE0F  Python environment not available");
         }
       } catch (error) {
-        logger7.warn("\u26A0\uFE0F  Could not check Python environment:", error);
+        logger9.warn("\u26A0\uFE0F  Could not check Python environment:", error);
       }
     } else {
-      logger7.warn("\u26A0\uFE0F  Python service not available");
+      logger9.warn("\u26A0\uFE0F  Python service not available");
     }
     return service;
   }
   static async stop(runtime) {
-    logger7.info("\u{1F9EA} Stopping computational chemistry service");
+    logger9.info("\u{1F9EA} Stopping computational chemistry service");
     const service = runtime.getService(_CompchemService.serviceType);
     if (!service) {
       throw new Error("Computational chemistry service not found");
@@ -1691,32 +2052,32 @@ var CompchemService = class _CompchemService extends Service2 {
     service.stop();
   }
   async stop() {
-    logger7.info("\u{1F9EA} Computational chemistry service stopped");
+    logger9.info("\u{1F9EA} Computational chemistry service stopped");
   }
 };
 var myCompchemPlugin = {
   name: "my-compchem-plugin-v2",
-  description: "Advanced computational chemistry plugin for ElizaOS with Python integration",
+  description: "Advanced computational chemistry plugin for ElizaOS with Python integration and persistent knowledge graph storage",
   config: {
     PYTHON_PATH: process.env.PYTHON_PATH,
     PYTHON_DEBUG: process.env.PYTHON_DEBUG,
     COMPCHEM_DATA_DIR: process.env.COMPCHEM_DATA_DIR
   },
   async init(config) {
-    logger7.info("\u{1F9EA} Initializing computational chemistry plugin v2");
+    logger9.info("\u{1F9EA} Initializing computational chemistry plugin v2");
     try {
       const validatedConfig = await configSchema.parseAsync(config);
       for (const [key, value] of Object.entries(validatedConfig)) {
         if (value) process.env[key] = value;
       }
-      logger7.info("\u2705 Plugin configuration validated successfully");
-      logger7.info(`\u{1F40D} Python path: ${validatedConfig.PYTHON_PATH}`);
-      logger7.info(`\u{1F4C1} Data directory: ${validatedConfig.COMPCHEM_DATA_DIR}`);
+      logger9.info("\u2705 Plugin configuration validated successfully");
+      logger9.info(`\u{1F40D} Python path: ${validatedConfig.PYTHON_PATH}`);
+      logger9.info(`\u{1F4C1} Data directory: ${validatedConfig.COMPCHEM_DATA_DIR}`);
       try {
         await DeploymentService.deployPythonFiles();
       } catch (deployError) {
-        logger7.warn("\u26A0\uFE0F  Failed to auto-deploy Python files:", deployError);
-        logger7.warn("You may need to manually copy Python files to the agent directory");
+        logger9.warn("\u26A0\uFE0F  Failed to auto-deploy Python files:", deployError);
+        logger9.warn("You may need to manually copy Python files to the agent directory");
       }
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -1771,31 +2132,31 @@ var myCompchemPlugin = {
   events: {
     MESSAGE_RECEIVED: [
       async (params) => {
-        logger7.debug("MESSAGE_RECEIVED event received");
-        logger7.debug(Object.keys(params));
+        logger9.debug("MESSAGE_RECEIVED event received");
+        logger9.debug(Object.keys(params));
       }
     ],
     VOICE_MESSAGE_RECEIVED: [
       async (params) => {
-        logger7.debug("VOICE_MESSAGE_RECEIVED event received");
-        logger7.debug(Object.keys(params));
+        logger9.debug("VOICE_MESSAGE_RECEIVED event received");
+        logger9.debug(Object.keys(params));
       }
     ],
     WORLD_CONNECTED: [
       async (params) => {
-        logger7.debug("WORLD_CONNECTED event received");
-        logger7.debug(Object.keys(params));
+        logger9.debug("WORLD_CONNECTED event received");
+        logger9.debug(Object.keys(params));
       }
     ],
     WORLD_JOINED: [
       async (params) => {
-        logger7.debug("WORLD_JOINED event received");
-        logger7.debug(Object.keys(params));
+        logger9.debug("WORLD_JOINED event received");
+        logger9.debug(Object.keys(params));
       }
     ]
   },
-  services: [PythonService, CompchemService],
-  actions: [helloWorldAction, analyzeMolecularDataAction, generateVisualizationAction, parseGaussianFileAction, diagnosticsAction],
+  services: [PythonService, CompchemService, AutoKnowledgeService],
+  actions: [helloWorldAction, analyzeMolecularDataAction, generateVisualizationAction, parseGaussianFileAction, diagnosticsAction, autoKnowledgeAction],
   providers: [helloWorldProvider],
   tests: [StarterPluginTestSuite]
   // dependencies: ['@elizaos/plugin-knowledge'], <--- plugin dependecies go here (if requires another plugin)
@@ -1804,9 +2165,11 @@ var myCompchemPlugin = {
 // src/index.ts
 var index_default = myCompchemPlugin;
 export {
+  AutoKnowledgeService,
   CompchemService,
   PythonService,
   analyzeMolecularDataAction,
+  autoKnowledgeAction,
   index_default as default,
   diagnosticsAction,
   generateVisualizationAction,

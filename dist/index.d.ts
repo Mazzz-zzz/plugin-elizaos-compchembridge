@@ -10,6 +10,32 @@ declare class CompchemService extends Service {
 }
 declare const myCompchemPlugin: Plugin;
 
+declare class AutoKnowledgeService extends Service {
+    static serviceType: string;
+    capabilityDescription: string;
+    private knowledgeGraphPath;
+    private watchedDirectory;
+    private processedFiles;
+    private isInitialized;
+    private fileWatcher;
+    constructor(runtime: IAgentRuntime);
+    static start(runtime: IAgentRuntime): Promise<AutoKnowledgeService>;
+    initialize(): Promise<void>;
+    static stop(runtime: IAgentRuntime): Promise<void>;
+    stop(): Promise<void>;
+    private stopWatching;
+    private loadOrCreateKnowledgeGraph;
+    private createInitialKnowledgeGraph;
+    private scanExistingFiles;
+    private startFileWatcher;
+    private processFileAutomatically;
+    getStats(): Promise<any>;
+    searchKnowledgeGraph(query: string): Promise<any>;
+    isFileProcessed(filename: string): boolean;
+}
+
+declare const autoKnowledgeAction: Action;
+
 declare class PythonService extends Service {
     static serviceType: string;
     capabilityDescription: string;
@@ -78,4 +104,4 @@ declare const parseGaussianFileAction: Action;
  */
 declare const diagnosticsAction: Action;
 
-export { CompchemService, PythonService, analyzeMolecularDataAction, myCompchemPlugin as default, diagnosticsAction, generateVisualizationAction, myCompchemPlugin, parseGaussianFileAction };
+export { AutoKnowledgeService, CompchemService, PythonService, analyzeMolecularDataAction, autoKnowledgeAction, myCompchemPlugin as default, diagnosticsAction, generateVisualizationAction, myCompchemPlugin, parseGaussianFileAction };

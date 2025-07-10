@@ -19,10 +19,12 @@ import { StarterPluginTestSuite } from './tests';
 // Import Python service and actions
 import { PythonService } from './services/pythonService';
 import { DeploymentService } from './services/deploymentService';
+import { AutoKnowledgeService } from './services/autoKnowledgeService';
 import { analyzeMolecularDataAction } from './actions/analyzeMolecularData';
 import { generateVisualizationAction } from './actions/generateVisualization';
 import { parseGaussianFileAction } from './actions/parseGaussianFile';
 import { diagnosticsAction } from './actions/diagnostics';
+import { autoKnowledgeAction } from './actions/autoKnowledgeAction';
 
 /**
  * Defines the configuration schema for the computational chemistry plugin
@@ -207,7 +209,7 @@ export class CompchemService extends Service {
 
 export const myCompchemPlugin: Plugin = {
   name: 'my-compchem-plugin-v2',
-  description: 'Advanced computational chemistry plugin for ElizaOS with Python integration',
+  description: 'Advanced computational chemistry plugin for ElizaOS with Python integration and persistent knowledge graph storage',
   config: {
     PYTHON_PATH: process.env.PYTHON_PATH,
     PYTHON_DEBUG: process.env.PYTHON_DEBUG,
@@ -323,8 +325,8 @@ export const myCompchemPlugin: Plugin = {
       },
     ],
   },
-  services: [PythonService, CompchemService],
-  actions: [helloWorldAction, analyzeMolecularDataAction, generateVisualizationAction, parseGaussianFileAction, diagnosticsAction],
+  services: [PythonService, CompchemService, AutoKnowledgeService],
+  actions: [helloWorldAction, analyzeMolecularDataAction, generateVisualizationAction, parseGaussianFileAction, diagnosticsAction, autoKnowledgeAction],
   providers: [helloWorldProvider],
   tests: [StarterPluginTestSuite],
   // dependencies: ['@elizaos/plugin-knowledge'], <--- plugin dependecies go here (if requires another plugin)

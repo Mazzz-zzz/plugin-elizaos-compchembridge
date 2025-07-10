@@ -124,6 +124,7 @@ export const parseGaussianFileAction: Action = {
         source: 'eliza_agent'
       };
 
+      // Parse the Gaussian file
       const parseResult = await pythonService.parseGaussianFile(filePath, metadata, 'json');
       
       if (parseResult.error) {
@@ -218,6 +219,10 @@ export const parseGaussianFileAction: Action = {
       if (availableProperties.length > 8) {
         responseText += ` ... (${availableProperties.length - 8} more)`;
       }
+
+      // Auto knowledge graph info
+      responseText += `\n\n🧠 **Auto Knowledge Graph:** Files in \`data/examples/\` are automatically processed into a persistent knowledge base`;
+      responseText += `\n💡 *Try: "Show knowledge stats" to see the auto-built knowledge base*`;
 
       const responseContent: Content = {
         text: responseText,
