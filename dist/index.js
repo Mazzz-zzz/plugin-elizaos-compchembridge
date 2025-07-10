@@ -858,6 +858,113 @@ var AutoKnowledgeService = class _AutoKnowledgeService extends Service2 {
       return { error: error.message };
     }
   }
+  async getEnergies() {
+    try {
+      const content = await fs3.readFile(this.knowledgeGraphPath, "utf-8");
+      const energiesByFile = {};
+      let currentFile = "unknown";
+      const lines = content.split("\n");
+      for (const line of lines) {
+        if (line.includes("# File:")) {
+          const match = line.match(/# File: (.+?) \(/);
+          if (match) {
+            currentFile = match[1];
+            if (!energiesByFile[currentFile]) {
+              energiesByFile[currentFile] = [];
+            }
+          }
+        }
+        if (line.includes("ontocompchem:hasValue") || line.includes("ontocompchem:hasValueEV")) {
+          const valueMatch = line.match(/ontocompchem:hasValue\s+([+-]?\d+\.?\d*)/);
+          const evMatch = line.match(/ontocompchem:hasValueEV\s+([+-]?\d+\.?\d*)/);
+          if (valueMatch) {
+            const energy = parseFloat(valueMatch[1]);
+            energiesByFile[currentFile] = energiesByFile[currentFile] || [];
+            let energyEntry = energiesByFile[currentFile].find((e) => Math.abs(e.hartree - energy) < 1e-6);
+            if (!energyEntry) {
+              energyEntry = {
+                hartree: energy,
+                eV: energy * 27.211
+                // Convert hartree to eV
+              };
+              energiesByFile[currentFile].push(energyEntry);
+            }
+          }
+          if (evMatch) {
+            const energyEv = parseFloat(evMatch[1]);
+            energiesByFile[currentFile] = energiesByFile[currentFile] || [];
+            let energyEntry = energiesByFile[currentFile].find((e) => Math.abs(e.eV - energyEv) < 1e-3);
+            if (!energyEntry) {
+              energyEntry = {
+                eV: energyEv,
+                hartree: energyEv / 27.211
+                // Convert eV to hartree
+              };
+              energiesByFile[currentFile].push(energyEntry);
+            } else {
+              energyEntry.eV = energyEv;
+            }
+          }
+        }
+      }
+      return {
+        energiesByFile,
+        totalFiles: Object.keys(energiesByFile).length,
+        totalEnergies: Object.values(energiesByFile).reduce((sum, energies) => sum + energies.length, 0)
+      };
+    } catch (error) {
+      return { error: error.message };
+    }
+  }
+  async getMolecularData() {
+    try {
+      const content = await fs3.readFile(this.knowledgeGraphPath, "utf-8");
+      const moleculesByFile = {};
+      let currentFile = "unknown";
+      const lines = content.split("\n");
+      for (const line of lines) {
+        if (line.includes("# File:")) {
+          const match = line.match(/# File: (.+?) \(/);
+          if (match) {
+            currentFile = match[1];
+            if (!moleculesByFile[currentFile]) {
+              moleculesByFile[currentFile] = {};
+            }
+          }
+        }
+        if (line.includes("ontocompchem:hasNAtoms")) {
+          const match = line.match(/ontocompchem:hasNAtoms\s+(\d+)/);
+          if (match) {
+            moleculesByFile[currentFile].nAtoms = parseInt(match[1]);
+          }
+        }
+        if (line.includes("ontocompchem:hasMolecularFormula")) {
+          const match = line.match(/ontocompchem:hasMolecularFormula\s+"([^"]+)"/);
+          if (match) {
+            moleculesByFile[currentFile].formula = match[1];
+          }
+        }
+        if (line.includes("ontocompchem:hasCharge")) {
+          const match = line.match(/ontocompchem:hasCharge\s+([+-]?\d+)/);
+          if (match) {
+            moleculesByFile[currentFile].charge = parseInt(match[1]);
+          }
+        }
+        if (line.includes("ontocompchem:hasMultiplicity")) {
+          const match = line.match(/ontocompchem:hasMultiplicity\s+(\d+)/);
+          if (match) {
+            moleculesByFile[currentFile].multiplicity = parseInt(match[1]);
+          }
+        }
+      }
+      return {
+        moleculesByFile,
+        totalFiles: Object.keys(moleculesByFile).length
+      };
+    } catch (error) {
+      return { error: error.message };
+    }
+  }
   isFileProcessed(filename) {
     return this.processedFiles.has(filename);
   }
@@ -1832,9 +1939,13 @@ var autoKnowledgeAction = {
     "AUTO_STATS",
     "SHOW_KNOWLEDGE",
     "KNOWLEDGE_BASE",
-    "HOW_MANY_MOLECULES"
+    "HOW_MANY_MOLECULES",
+    "GET_ENERGIES",
+    "SHOW_ENERGIES",
+    "SCF_ENERGIES",
+    "ENERGY_VALUES"
   ],
-  description: "Show statistics from the automatic knowledge graph that builds from files in data/examples/",
+  description: "Show statistics and detailed data from the automatic knowledge graph including actual energy values",
   validate: async (_runtime, message, _state) => {
     const text = message.content.text?.toLowerCase() || "";
     const keywords = [
@@ -1847,7 +1958,12 @@ var autoKnowledgeAction = {
       "automatic",
       "processed",
       "files",
-      "knowledge base"
+      "knowledge base",
+      "energies",
+      "energy",
+      "scf",
+      "get energies",
+      "show energies"
     ];
     return keywords.some((keyword) => text.includes(keyword));
   },
@@ -1864,17 +1980,60 @@ var autoKnowledgeAction = {
         if (callback) await callback(errorContent);
         return errorContent;
       }
-      const stats = await autoService.getStats();
-      if (stats.error) {
-        const errorContent = {
-          text: `\u274C Error getting knowledge stats: ${stats.error}`,
-          actions: ["AUTO_KNOWLEDGE_STATS"],
-          source: message.content.source
-        };
-        if (callback) await callback(errorContent);
-        return errorContent;
-      }
-      const responseText = `\u{1F9E0} **Automatic Knowledge Graph Status**
+      const userQuery = message.content.text?.toLowerCase() || "";
+      const isEnergyQuery = userQuery.includes("energy") || userQuery.includes("energies") || userQuery.includes("scf");
+      let responseText;
+      if (isEnergyQuery) {
+        const energyData = await autoService.getEnergies();
+        if (energyData.error) {
+          const errorContent = {
+            text: `\u274C Error getting energy data: ${energyData.error}`,
+            actions: ["AUTO_KNOWLEDGE_STATS"],
+            source: message.content.source
+          };
+          if (callback) await callback(errorContent);
+          return errorContent;
+        }
+        responseText = `\u26A1 **SCF Energies from Knowledge Graph**
+
+`;
+        if (energyData.totalEnergies === 0) {
+          responseText += `\u274C No energy data found in the knowledge graph.
+
+`;
+          responseText += `\u{1F4A1} **To get energy data:** Copy Gaussian .log files to \`data/examples/\` and they'll be automatically processed!`;
+        } else {
+          responseText += `**\u{1F4CA} Total Files:** ${energyData.totalFiles} | **Total Energies:** ${energyData.totalEnergies}
+
+`;
+          for (const [filename, energies] of Object.entries(energyData.energiesByFile)) {
+            responseText += `**\u{1F4C4} ${filename}:**
+`;
+            if (Array.isArray(energies) && energies.length > 0) {
+              energies.forEach((energy, index) => {
+                responseText += `  ${index + 1}. **${energy.hartree.toFixed(8)} hartree** (${energy.eV.toFixed(6)} eV)
+`;
+              });
+            } else {
+              responseText += `  \u26A0\uFE0F  No energies found
+`;
+            }
+            responseText += "\n";
+          }
+          responseText += `\u{1F4A1} **Units:** Hartree is the atomic unit of energy. 1 hartree = 27.211 eV`;
+        }
+      } else {
+        const stats = await autoService.getStats();
+        if (stats.error) {
+          const errorContent = {
+            text: `\u274C Error getting knowledge stats: ${stats.error}`,
+            actions: ["AUTO_KNOWLEDGE_STATS"],
+            source: message.content.source
+          };
+          if (callback) await callback(errorContent);
+          return errorContent;
+        }
+        responseText = `\u{1F9E0} **Automatic Knowledge Graph Status**
 
 **\u{1F4C1} Monitoring:** \`${stats.watchedDirectory}\`
 **\u{1F4CA} Knowledge Graph:** \`${stats.knowledgeGraphPath}\`
@@ -1891,7 +2050,8 @@ ${stats.filesList.map((file) => `\u2022 ${file}`).join("\n")}` : "**\u{1F4C4} No
 
 \u{1F4A1} **How it works:** Just copy \`.log\` or \`.out\` files to \`data/examples/\` and they'll be automatically processed into the knowledge graph!
 
-${stats.totalFiles === 0 ? "\n\u{1F680} **Get started:** Copy some Gaussian log files to `data/examples/` to see the knowledge graph grow automatically!" : '\n\u{1F50D} **Search tip:** Ask me to "search for energy" or "find molecules" to explore the knowledge base!'}`;
+${stats.totalFiles === 0 ? "\n\u{1F680} **Get started:** Copy some Gaussian log files to `data/examples/` to see the knowledge graph grow automatically!" : '\n\u{1F50D} **Energy tip:** Ask me to "get energies" or "show SCF energies" to see actual energy values!'}`;
+      }
       const responseContent = {
         text: responseText,
         actions: ["AUTO_KNOWLEDGE_STATS"],
@@ -1930,13 +2090,28 @@ ${stats.totalFiles === 0 ? "\n\u{1F680} **Get started:** Copy some Gaussian log 
       {
         name: "{{user1}}",
         content: {
+          text: "Get energies"
+        }
+      },
+      {
+        name: "{{user2}}",
+        content: {
+          text: "\u26A1 **SCF Energies from Knowledge Graph**\n\n**\u{1F4CA} Total Files:** 2 | **Total Energies:** 2\n\n**\u{1F4C4} TolueneEnergy.log:**\n  1. **-271.63604200 hartree** (-7384.636042 eV)\n\n**\u{1F4C4} lactone.log:**\n  1. **-227.85626900 hartree** (-6202.856269 eV)\n\n\u{1F4A1} **Units:** Hartree is the atomic unit of energy. 1 hartree = 27.211 eV",
+          actions: ["AUTO_KNOWLEDGE_STATS"]
+        }
+      }
+    ],
+    [
+      {
+        name: "{{user1}}",
+        content: {
           text: "How many molecules do we have?"
         }
       },
       {
         name: "{{user2}}",
         content: {
-          text: '\u{1F9E0} **Automatic Knowledge Graph Status**\n\n**\u{1F4C8} Current Statistics:**\n\u2022 **Files Processed:** 3\n\u2022 **Molecules:** 3\n\u2022 **SCF Energies:** 3\n\u2022 **Atoms:** 45\n\n**\u{1F4C4} Processed Files:**\n\u2022 lactone.log\n\u2022 TolueneEnergy.log\n\u2022 example.log\n\n\u{1F50D} **Search tip:** Ask me to "search for energy" or "find molecules" to explore the knowledge base!',
+          text: '\u{1F9E0} **Automatic Knowledge Graph Status**\n\n**\u{1F4C8} Current Statistics:**\n\u2022 **Files Processed:** 3\n\u2022 **Molecules:** 3\n\u2022 **SCF Energies:** 3\n\u2022 **Atoms:** 45\n\n**\u{1F4C4} Processed Files:**\n\u2022 lactone.log\n\u2022 TolueneEnergy.log\n\u2022 example.log\n\n\u{1F50D} **Energy tip:** Ask me to "get energies" or "show SCF energies" to see actual energy values!',
           actions: ["AUTO_KNOWLEDGE_STATS"]
         }
       }

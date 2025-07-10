@@ -16,9 +16,13 @@ export const autoKnowledgeAction: Action = {
     'AUTO_STATS',
     'SHOW_KNOWLEDGE',
     'KNOWLEDGE_BASE',
-    'HOW_MANY_MOLECULES'
+    'HOW_MANY_MOLECULES',
+    'GET_ENERGIES',
+    'SHOW_ENERGIES',
+    'SCF_ENERGIES',
+    'ENERGY_VALUES'
   ],
-  description: 'Show statistics from the automatic knowledge graph that builds from files in data/examples/',
+  description: 'Show statistics and detailed data from the automatic knowledge graph including actual energy values',
 
   validate: async (
     _runtime: IAgentRuntime,
@@ -29,7 +33,8 @@ export const autoKnowledgeAction: Action = {
     
     const keywords = [
       'knowledge', 'stats', 'statistics', 'how many', 'molecules',
-      'auto', 'automatic', 'processed', 'files', 'knowledge base'
+      'auto', 'automatic', 'processed', 'files', 'knowledge base',
+      'energies', 'energy', 'scf', 'get energies', 'show energies'
     ];
     
     return keywords.some(keyword => text.includes(keyword));
@@ -59,20 +64,65 @@ export const autoKnowledgeAction: Action = {
         return errorContent;
       }
 
-      const stats = await autoService.getStats();
+      const userQuery = message.content.text?.toLowerCase() || '';
+      const isEnergyQuery = userQuery.includes('energy') || userQuery.includes('energies') || userQuery.includes('scf');
       
-      if (stats.error) {
-        const errorContent: Content = {
-          text: `❌ Error getting knowledge stats: ${stats.error}`,
-          actions: ['AUTO_KNOWLEDGE_STATS'],
-          source: message.content.source,
-        };
+      let responseText: string;
+      
+      if (isEnergyQuery) {
+        // User wants specific energy values
+        const energyData = await autoService.getEnergies();
         
-        if (callback) await callback(errorContent);
-        return errorContent;
-      }
+        if (energyData.error) {
+          const errorContent: Content = {
+            text: `❌ Error getting energy data: ${energyData.error}`,
+            actions: ['AUTO_KNOWLEDGE_STATS'],
+            source: message.content.source,
+          };
+          
+          if (callback) await callback(errorContent);
+          return errorContent;
+        }
 
-      const responseText = `🧠 **Automatic Knowledge Graph Status**
+        responseText = `⚡ **SCF Energies from Knowledge Graph**\n\n`;
+        
+        if (energyData.totalEnergies === 0) {
+          responseText += `❌ No energy data found in the knowledge graph.\n\n`;
+          responseText += `💡 **To get energy data:** Copy Gaussian .log files to \`data/examples/\` and they'll be automatically processed!`;
+        } else {
+          responseText += `**📊 Total Files:** ${energyData.totalFiles} | **Total Energies:** ${energyData.totalEnergies}\n\n`;
+          
+          for (const [filename, energies] of Object.entries(energyData.energiesByFile)) {
+            responseText += `**📄 ${filename}:**\n`;
+            
+            if (Array.isArray(energies) && energies.length > 0) {
+              energies.forEach((energy: any, index: number) => {
+                responseText += `  ${index + 1}. **${energy.hartree.toFixed(8)} hartree** (${energy.eV.toFixed(6)} eV)\n`;
+              });
+            } else {
+              responseText += `  ⚠️  No energies found\n`;
+            }
+            responseText += '\n';
+          }
+          
+          responseText += `💡 **Units:** Hartree is the atomic unit of energy. 1 hartree = 27.211 eV`;
+        }
+      } else {
+        // User wants general statistics
+        const stats = await autoService.getStats();
+        
+        if (stats.error) {
+          const errorContent: Content = {
+            text: `❌ Error getting knowledge stats: ${stats.error}`,
+            actions: ['AUTO_KNOWLEDGE_STATS'],
+            source: message.content.source,
+          };
+          
+          if (callback) await callback(errorContent);
+          return errorContent;
+        }
+
+        responseText = `🧠 **Automatic Knowledge Graph Status**
 
 **📁 Monitoring:** \`${stats.watchedDirectory}\`
 **📊 Knowledge Graph:** \`${stats.knowledgeGraphPath}\`
@@ -93,8 +143,9 @@ ${stats.totalFiles > 0 ?
 
 ${stats.totalFiles === 0 ? 
   '\n🚀 **Get started:** Copy some Gaussian log files to `data/examples/` to see the knowledge graph grow automatically!' : 
-  '\n🔍 **Search tip:** Ask me to "search for energy" or "find molecules" to explore the knowledge base!'
+  '\n🔍 **Energy tip:** Ask me to "get energies" or "show SCF energies" to see actual energy values!'
 }`;
+      }
 
       const responseContent: Content = {
         text: responseText,
@@ -139,13 +190,28 @@ ${stats.totalFiles === 0 ?
       {
         name: '{{user1}}',
         content: {
+          text: 'Get energies',
+        },
+      },
+      {
+        name: '{{user2}}',
+        content: {
+          text: '⚡ **SCF Energies from Knowledge Graph**\n\n**📊 Total Files:** 2 | **Total Energies:** 2\n\n**📄 TolueneEnergy.log:**\n  1. **-271.63604200 hartree** (-7384.636042 eV)\n\n**📄 lactone.log:**\n  1. **-227.85626900 hartree** (-6202.856269 eV)\n\n💡 **Units:** Hartree is the atomic unit of energy. 1 hartree = 27.211 eV',
+          actions: ['AUTO_KNOWLEDGE_STATS'],
+        },
+      },
+    ],
+    [
+      {
+        name: '{{user1}}',
+        content: {
           text: 'How many molecules do we have?',
         },
       },
       {
         name: '{{user2}}',
         content: {
-          text: '🧠 **Automatic Knowledge Graph Status**\n\n**📈 Current Statistics:**\n• **Files Processed:** 3\n• **Molecules:** 3\n• **SCF Energies:** 3\n• **Atoms:** 45\n\n**📄 Processed Files:**\n• lactone.log\n• TolueneEnergy.log\n• example.log\n\n🔍 **Search tip:** Ask me to "search for energy" or "find molecules" to explore the knowledge base!',
+          text: '🧠 **Automatic Knowledge Graph Status**\n\n**📈 Current Statistics:**\n• **Files Processed:** 3\n• **Molecules:** 3\n• **SCF Energies:** 3\n• **Atoms:** 45\n\n**📄 Processed Files:**\n• lactone.log\n• TolueneEnergy.log\n• example.log\n\n🔍 **Energy tip:** Ask me to "get energies" or "show SCF energies" to see actual energy values!',
           actions: ['AUTO_KNOWLEDGE_STATS'],
         },
       },

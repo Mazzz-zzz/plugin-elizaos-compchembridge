@@ -31,6 +31,8 @@ declare class AutoKnowledgeService extends Service {
     private processFileAutomatically;
     getStats(): Promise<any>;
     searchKnowledgeGraph(query: string): Promise<any>;
+    getEnergies(): Promise<any>;
+    getMolecularData(): Promise<any>;
     isFileProcessed(filename: string): boolean;
 }
 

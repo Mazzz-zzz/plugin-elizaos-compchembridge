@@ -290,6 +290,137 @@ export class AutoKnowledgeService extends Service {
         }
     }
 
+    async getEnergies(): Promise<any> {
+        try {
+            const content = await fs.readFile(this.knowledgeGraphPath, 'utf-8');
+            
+            // Parse the RDF content to extract energy values
+            const energiesByFile: { [key: string]: any[] } = {};
+            let currentFile = 'unknown';
+            
+            const lines = content.split('\n');
+            
+            for (const line of lines) {
+                // Track which file we're processing
+                if (line.includes('# File:')) {
+                    const match = line.match(/# File: (.+?) \(/);
+                    if (match) {
+                        currentFile = match[1];
+                        if (!energiesByFile[currentFile]) {
+                            energiesByFile[currentFile] = [];
+                        }
+                    }
+                }
+                
+                // Extract SCF energies
+                if (line.includes('ontocompchem:hasValue') || line.includes('ontocompchem:hasValueEV')) {
+                    const valueMatch = line.match(/ontocompchem:hasValue\s+([+-]?\d+\.?\d*)/);
+                    const evMatch = line.match(/ontocompchem:hasValueEV\s+([+-]?\d+\.?\d*)/);
+                    
+                    if (valueMatch) {
+                        const energy = parseFloat(valueMatch[1]);
+                        energiesByFile[currentFile] = energiesByFile[currentFile] || [];
+                        
+                        // Find existing energy entry or create new one
+                        let energyEntry = energiesByFile[currentFile].find(e => Math.abs(e.hartree - energy) < 0.000001);
+                        if (!energyEntry) {
+                            energyEntry = { 
+                                hartree: energy,
+                                eV: energy * 27.211 // Convert hartree to eV
+                            };
+                            energiesByFile[currentFile].push(energyEntry);
+                        }
+                    }
+                    
+                    if (evMatch) {
+                        const energyEv = parseFloat(evMatch[1]);
+                        energiesByFile[currentFile] = energiesByFile[currentFile] || [];
+                        
+                        // Find existing energy entry or create new one
+                        let energyEntry = energiesByFile[currentFile].find(e => Math.abs(e.eV - energyEv) < 0.001);
+                        if (!energyEntry) {
+                            energyEntry = {
+                                eV: energyEv,
+                                hartree: energyEv / 27.211 // Convert eV to hartree
+                            };
+                            energiesByFile[currentFile].push(energyEntry);
+                        } else {
+                            energyEntry.eV = energyEv; // Update with precise eV value
+                        }
+                    }
+                }
+            }
+            
+            return {
+                energiesByFile,
+                totalFiles: Object.keys(energiesByFile).length,
+                totalEnergies: Object.values(energiesByFile).reduce((sum, energies) => sum + energies.length, 0)
+            };
+        } catch (error) {
+            return { error: error.message };
+        }
+    }
+
+    async getMolecularData(): Promise<any> {
+        try {
+            const content = await fs.readFile(this.knowledgeGraphPath, 'utf-8');
+            
+            const moleculesByFile: { [key: string]: any } = {};
+            let currentFile = 'unknown';
+            
+            const lines = content.split('\n');
+            
+            for (const line of lines) {
+                // Track which file we're processing  
+                if (line.includes('# File:')) {
+                    const match = line.match(/# File: (.+?) \(/);
+                    if (match) {
+                        currentFile = match[1];
+                        if (!moleculesByFile[currentFile]) {
+                            moleculesByFile[currentFile] = {};
+                        }
+                    }
+                }
+                
+                // Extract molecular properties
+                if (line.includes('ontocompchem:hasNAtoms')) {
+                    const match = line.match(/ontocompchem:hasNAtoms\s+(\d+)/);
+                    if (match) {
+                        moleculesByFile[currentFile].nAtoms = parseInt(match[1]);
+                    }
+                }
+                
+                if (line.includes('ontocompchem:hasMolecularFormula')) {
+                    const match = line.match(/ontocompchem:hasMolecularFormula\s+"([^"]+)"/);
+                    if (match) {
+                        moleculesByFile[currentFile].formula = match[1];
+                    }
+                }
+                
+                if (line.includes('ontocompchem:hasCharge')) {
+                    const match = line.match(/ontocompchem:hasCharge\s+([+-]?\d+)/);
+                    if (match) {
+                        moleculesByFile[currentFile].charge = parseInt(match[1]);
+                    }
+                }
+                
+                if (line.includes('ontocompchem:hasMultiplicity')) {
+                    const match = line.match(/ontocompchem:hasMultiplicity\s+(\d+)/);
+                    if (match) {
+                        moleculesByFile[currentFile].multiplicity = parseInt(match[1]);
+                    }
+                }
+            }
+            
+            return {
+                moleculesByFile,
+                totalFiles: Object.keys(moleculesByFile).length
+            };
+        } catch (error) {
+            return { error: error.message };
+        }
+    }
+
     isFileProcessed(filename: string): boolean {
         return this.processedFiles.has(filename);
     }
