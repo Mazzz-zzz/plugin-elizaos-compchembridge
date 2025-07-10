@@ -59,9 +59,9 @@ declare class PythonService extends Service {
      */
     analyzeMolecularData(molecularData: any, analysisType?: 'molecular' | 'energy' | 'visualization'): Promise<any>;
     /**
-     * Generate visualization data using Python
+     * Generate visualization charts using Python matplotlib
      */
-    generateVisualization(molecularData: any, outputPath?: string): Promise<any>;
+    generateVisualization(chartType: string, plotData: any, outputDir: string): Promise<any>;
     /**
      * Parse Gaussian log files using cclib
      */
@@ -91,9 +91,6 @@ declare class PythonService extends Service {
  */
 declare const analyzeMolecularDataAction: Action;
 
-/**
- * Action for generating molecular visualizations using Python tools
- */
 declare const generateVisualizationAction: Action;
 
 /**

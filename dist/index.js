@@ -462,16 +462,16 @@ var PythonService = class _PythonService extends Service {
     }
   }
   /**
-   * Generate visualization data using Python
+   * Generate visualization charts using Python matplotlib
    */
-  async generateVisualization(molecularData, outputPath) {
+  async generateVisualization(chartType, plotData, outputDir) {
     try {
       const possibleScriptPaths = [
-        path2.join(process.cwd(), "py", "molecular_analyzer.py"),
-        path2.join(__dirname2, "..", "..", "py", "molecular_analyzer.py"),
-        path2.join(__dirname2, "..", "..", "..", "py", "molecular_analyzer.py"),
-        path2.join(process.cwd(), "plugins", "my-compchem-plugin-v2", "py", "molecular_analyzer.py"),
-        "./py/molecular_analyzer.py"
+        path2.join(process.cwd(), "py", "plot_gaussian_analysis.py"),
+        path2.join(__dirname2, "..", "..", "py", "plot_gaussian_analysis.py"),
+        path2.join(__dirname2, "..", "..", "..", "py", "plot_gaussian_analysis.py"),
+        path2.join(process.cwd(), "plugins", "my-compchem-plugin-v2", "py", "plot_gaussian_analysis.py"),
+        "./py/plot_gaussian_analysis.py"
       ];
       let scriptPath = null;
       for (const possiblePath of possibleScriptPaths) {
@@ -483,22 +483,31 @@ var PythonService = class _PythonService extends Service {
         }
       }
       if (!scriptPath) {
-        throw new Error(`Python script not found. Tried paths: ${possibleScriptPaths.join(", ")}`);
+        throw new Error(`Python plotting script not found. Tried paths: ${possibleScriptPaths.join(", ")}`);
       }
-      const dataJson = JSON.stringify(molecularData);
-      const args = [dataJson, "--analysis_type", "visualization"];
-      if (outputPath) {
-        args.push("--output", outputPath);
-      }
+      const outputFileName = `${chartType}_chart.png`;
+      const outputPath = path2.join(outputDir, outputFileName);
+      const dataJson = JSON.stringify(plotData);
+      const args = [chartType, dataJson, outputPath];
       const result = await this.executePythonScript(scriptPath, args);
-      if (outputPath) {
-        return { success: true, outputPath };
-      } else {
-        return JSON.parse(result);
+      let dataPoints = 0;
+      if (plotData.energyData) {
+        const energyCount = Object.values(plotData.energyData).reduce((sum, energies) => sum + (Array.isArray(energies) ? energies.length : 0), 0);
+        dataPoints += energyCount;
       }
+      return {
+        success: true,
+        chartPath: outputPath,
+        dataPoints,
+        description: `${chartType} chart generated with ${dataPoints} data points`,
+        message: result
+      };
     } catch (error) {
       logger2.error("Visualization generation failed:", error);
-      throw error;
+      return {
+        error: error instanceof Error ? error.message : "Unknown error",
+        success: false
+      };
     }
   }
   /**
@@ -1164,251 +1173,8 @@ function extractMolecularDataFromMessage(message) {
   return null;
 }
 
-// src/actions/generateVisualization.ts
-import { logger as logger5 } from "@elizaos/core";
-var generateVisualizationAction = {
-  name: "GENERATE_MOLECULAR_VISUALIZATION",
-  similes: ["VISUALIZE_MOLECULE", "PLOT_STRUCTURE", "MOLECULAR_VIZ", "SHOW_MOLECULE"],
-  description: "Generates molecular visualizations and structure diagrams using Python visualization tools",
-  validate: async (runtime, message, _state) => {
-    const text = message.content.text?.toLowerCase() || "";
-    const visualizationKeywords = [
-      "visualize",
-      "plot",
-      "show",
-      "display",
-      "diagram",
-      "structure",
-      "molecular visualization",
-      "molecular diagram",
-      "plot molecule",
-      "show structure",
-      "visualize structure",
-      "molecular plot"
-    ];
-    const molecularKeywords = [
-      "molecule",
-      "molecular",
-      "chemical",
-      "structure",
-      "compound",
-      "atoms",
-      "bonds"
-    ];
-    const hasVisualizationKeyword = visualizationKeywords.some((keyword) => text.includes(keyword));
-    const hasMolecularKeyword = molecularKeywords.some((keyword) => text.includes(keyword));
-    return hasVisualizationKeyword && hasMolecularKeyword;
-  },
-  handler: async (runtime, message, _state, _options, callback, _responses) => {
-    try {
-      logger5.info("\u{1F3A8} Generating molecular visualization...");
-      const pythonService = runtime.getService("python-execution");
-      if (!pythonService) {
-        throw new Error("Python service not available");
-      }
-      const pythonEnv = await pythonService.checkPythonEnvironment();
-      if (!pythonEnv.pythonAvailable) {
-        const errorContent = {
-          text: "\u274C Python environment is not available. Please ensure Python 3 and required packages (numpy, matplotlib) are installed for visualizations.",
-          actions: ["GENERATE_MOLECULAR_VISUALIZATION"],
-          source: message.content.source
-        };
-        if (callback) await callback(errorContent);
-        return errorContent;
-      }
-      const molecularData = extractMolecularDataFromMessage2(message) || {
-        formula: "C6H6",
-        name: "Benzene",
-        atoms: [
-          { id: 1, element: "C", x: 0, y: 0 },
-          { id: 2, element: "C", x: 1.4, y: 0 },
-          { id: 3, element: "C", x: 2.1, y: 1.2 },
-          { id: 4, element: "C", x: 1.4, y: 2.4 },
-          { id: 5, element: "C", x: 0, y: 2.4 },
-          { id: 6, element: "C", x: -0.7, y: 1.2 },
-          { id: 7, element: "H", x: -0.5, y: -0.9 },
-          { id: 8, element: "H", x: 1.9, y: -0.9 },
-          { id: 9, element: "H", x: 3.2, y: 1.2 },
-          { id: 10, element: "H", x: 1.9, y: 3.3 },
-          { id: 11, element: "H", x: -0.5, y: 3.3 },
-          { id: 12, element: "H", x: -1.8, y: 1.2 }
-        ],
-        bonds: [
-          { from: 1, to: 2 },
-          { from: 2, to: 3 },
-          { from: 3, to: 4 },
-          { from: 4, to: 5 },
-          { from: 5, to: 6 },
-          { from: 6, to: 1 },
-          { from: 1, to: 7 },
-          { from: 2, to: 8 },
-          { from: 3, to: 9 },
-          { from: 4, to: 10 },
-          { from: 5, to: 11 },
-          { from: 6, to: 12 }
-        ]
-      };
-      const visualizationResult = await pythonService.generateVisualization(molecularData);
-      if (!visualizationResult.success && visualizationResult.error) {
-        throw new Error(visualizationResult.error);
-      }
-      let responseText = `\u{1F3A8} **Molecular Visualization Generated**
-
-`;
-      responseText += `**Molecule:** ${molecularData.formula} ${molecularData.name ? `(${molecularData.name})` : ""}
-`;
-      responseText += `**Structure:**
-
-`;
-      if (visualizationResult.atoms && visualizationResult.atoms.length > 0) {
-        responseText += generateASCIIStructure(visualizationResult);
-        responseText += `
-
-**Atoms:** ${visualizationResult.atoms.length}
-`;
-        responseText += `**Bonds:** ${molecularData.bonds ? molecularData.bonds.length : 0}
-
-`;
-        responseText += `**Atom Details:**
-`;
-        const elementCounts = {};
-        visualizationResult.atoms.forEach((atom) => {
-          elementCounts[atom.element] = (elementCounts[atom.element] || 0) + 1;
-        });
-        Object.entries(elementCounts).forEach(([element, count]) => {
-          responseText += `\u2022 ${element}: ${count}
-`;
-        });
-        responseText += `
-**Coordinate System:** 2D Layout
-`;
-        const bounds = calculateBounds(visualizationResult.atoms);
-        responseText += `\u2022 X range: ${bounds.minX.toFixed(2)} to ${bounds.maxX.toFixed(2)}
-`;
-        responseText += `\u2022 Y range: ${bounds.minY.toFixed(2)} to ${bounds.maxY.toFixed(2)}
-`;
-      }
-      if (pythonEnv.packagesMissing.includes("matplotlib")) {
-        responseText += `
-**Note:** Install matplotlib for enhanced graphical visualizations: \`pip install matplotlib\``;
-      }
-      const responseContent = {
-        text: responseText,
-        actions: ["GENERATE_MOLECULAR_VISUALIZATION"],
-        source: message.content.source
-      };
-      if (callback) await callback(responseContent);
-      return responseContent;
-    } catch (error) {
-      logger5.error("Error in molecular visualization:", error);
-      const errorContent = {
-        text: `\u274C Failed to generate molecular visualization: ${error instanceof Error ? error.message : "Unknown error"}`,
-        actions: ["GENERATE_MOLECULAR_VISUALIZATION"],
-        source: message.content.source
-      };
-      if (callback) await callback(errorContent);
-      return errorContent;
-    }
-  },
-  examples: [
-    [
-      {
-        name: "{{user1}}",
-        content: {
-          text: "Can you visualize the molecular structure of benzene?"
-        }
-      },
-      {
-        name: "{{user2}}",
-        content: {
-          text: "\u{1F3A8} **Molecular Visualization Generated**\n\n**Molecule:** C6H6 (Benzene)\n**Structure:**\n\n```\n    H\n    |\nH-C=C-H\n |   |\nH-C=C-H\n    |\n    H\n```\n\n**Atoms:** 12\n**Bonds:** 12\n\n**Atom Details:**\n\u2022 C: 6\n\u2022 H: 6",
-          actions: ["GENERATE_MOLECULAR_VISUALIZATION"]
-        }
-      }
-    ],
-    [
-      {
-        name: "{{user1}}",
-        content: {
-          text: "Show me a diagram of this molecule"
-        }
-      },
-      {
-        name: "{{user2}}",
-        content: {
-          text: "\u{1F3A8} **Molecular Visualization Generated**\n\n**Molecule:** C6H6\n**Structure:**\n\n```\n       C\n     /   \\\n   C       C\n   |       |\n   C       C\n     \\   /\n       C\n```\n\n**Atoms:** 12\n**Bonds:** 12\n\n**Coordinate System:** 2D Layout\n\u2022 X range: -1.80 to 3.20\n\u2022 Y range: -0.90 to 3.30",
-          actions: ["GENERATE_MOLECULAR_VISUALIZATION"]
-        }
-      }
-    ]
-  ]
-};
-function extractMolecularDataFromMessage2(message) {
-  const text = message.content.text;
-  if (!text) return null;
-  try {
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      return JSON.parse(jsonMatch[0]);
-    }
-  } catch (error) {
-  }
-  const formulaMatch = text.match(/([A-Z][a-z]?\d*)+/);
-  if (formulaMatch) {
-    return {
-      formula: formulaMatch[0],
-      timestamp: (/* @__PURE__ */ new Date()).toISOString()
-    };
-  }
-  return null;
-}
-function generateASCIIStructure(visualizationData) {
-  if (!visualizationData.atoms || visualizationData.atoms.length === 0) {
-    return "```\nNo structure data available\n```";
-  }
-  const atomCount = visualizationData.atoms.length;
-  const elements = visualizationData.atoms.map((atom) => atom.element);
-  const uniqueElements = [...new Set(elements)];
-  let ascii = "```\n";
-  if (atomCount <= 20) {
-    ascii += visualizationData.atoms.map((atom, index) => {
-      const symbol = atom.element;
-      const position = `(${atom.x?.toFixed(1) || "0"}, ${atom.y?.toFixed(1) || "0"})`;
-      return `${symbol}${index + 1} ${position}`;
-    }).join(" - ");
-  } else {
-    ascii += `Large molecule with ${atomCount} atoms:
-`;
-    uniqueElements.forEach((element) => {
-      const count = elements.filter((e) => e === element).length;
-      ascii += `${element}: ${count} atoms
-`;
-    });
-  }
-  ascii += "\n```";
-  return ascii;
-}
-function calculateBounds(atoms) {
-  if (!atoms || atoms.length === 0) {
-    return { minX: 0, maxX: 0, minY: 0, maxY: 0 };
-  }
-  let minX = atoms[0].x || 0;
-  let maxX = atoms[0].x || 0;
-  let minY = atoms[0].y || 0;
-  let maxY = atoms[0].y || 0;
-  atoms.forEach((atom) => {
-    const x = atom.x || 0;
-    const y = atom.y || 0;
-    minX = Math.min(minX, x);
-    maxX = Math.max(maxX, x);
-    minY = Math.min(minY, y);
-    maxY = Math.max(maxY, y);
-  });
-  return { minX, maxX, minY, maxY };
-}
-
 // src/actions/parseGaussianFile.ts
-import { logger as logger6 } from "@elizaos/core";
+import { logger as logger5 } from "@elizaos/core";
 import * as path4 from "path";
 import * as fs4 from "fs";
 import { fileURLToPath as fileURLToPath3 } from "url";
@@ -1438,7 +1204,7 @@ var parseGaussianFileAction = {
   },
   handler: async (runtime, message, _state, _options, callback, _responses) => {
     try {
-      logger6.info("\u{1F9EC} Parsing Gaussian file...");
+      logger5.info("\u{1F9EC} Parsing Gaussian file...");
       const pythonService = runtime.getService("python-execution");
       if (!pythonService) {
         throw new Error("Python service not available");
@@ -1462,24 +1228,24 @@ var parseGaussianFileAction = {
         if (callback) await callback(errorContent);
         return errorContent;
       }
-      logger6.info(`\u{1F50D} Attempting to extract file path from message: "${message.content.text}"`);
+      logger5.info(`\u{1F50D} Attempting to extract file path from message: "${message.content.text}"`);
       const extractedPath = extractFilePathFromMessage(message);
-      logger6.info(`\u{1F4DD} Extracted path result: ${extractedPath}`);
+      logger5.info(`\u{1F4DD} Extracted path result: ${extractedPath}`);
       let filePath = extractedPath;
       if (!filePath) {
-        logger6.info("\u{1F50D} No file path extracted from message, looking for example files...");
+        logger5.info("\u{1F50D} No file path extracted from message, looking for example files...");
         filePath = findExampleLogFile();
-        logger6.info(`\u{1F4C1} Example file search result: ${filePath}`);
+        logger5.info(`\u{1F4C1} Example file search result: ${filePath}`);
       }
       if (!filePath) {
         const currentDir = process.cwd();
-        logger6.error(`\u274C No file found. CWD: ${currentDir}, __dirname: ${__dirname3}`);
+        logger5.error(`\u274C No file found. CWD: ${currentDir}, __dirname: ${__dirname3}`);
         const testDir = path4.join(currentDir, "data", "examples");
         try {
           const files = __require("fs").readdirSync(testDir);
-          logger6.info(`\u{1F4C2} Files in ${testDir}: ${files.join(", ")}`);
+          logger5.info(`\u{1F4C2} Files in ${testDir}: ${files.join(", ")}`);
         } catch (error) {
-          logger6.error(`\u274C Cannot read directory ${testDir}: ${error.message}`);
+          logger5.error(`\u274C Cannot read directory ${testDir}: ${error.message}`);
         }
         const errorContent = {
           text: `\u274C No Gaussian log file specified. Please provide a file path or add log files to the data/examples/ directory.
@@ -1620,7 +1386,7 @@ var parseGaussianFileAction = {
       if (callback) await callback(responseContent);
       return responseContent;
     } catch (error) {
-      logger6.error("Error in Gaussian file parsing:", error);
+      logger5.error("Error in Gaussian file parsing:", error);
       const errorContent = {
         text: `\u274C Failed to parse Gaussian file: ${error instanceof Error ? error.message : "Unknown error"}`,
         actions: ["PARSE_GAUSSIAN_FILE"],
@@ -1665,7 +1431,7 @@ var parseGaussianFileAction = {
 };
 function extractFilePathFromMessage(message) {
   const text = message.content.text;
-  logger6.info(`\u{1F50D} extractFilePathFromMessage: text = "${text}"`);
+  logger5.info(`\u{1F50D} extractFilePathFromMessage: text = "${text}"`);
   if (!text) return null;
   const filePatterns = [
     /(?:file:|path:)?\s*([^\s]+\.(?:log|out))/gi,
@@ -1676,11 +1442,11 @@ function extractFilePathFromMessage(message) {
   for (let i = 0; i < filePatterns.length; i++) {
     const pattern = filePatterns[i];
     const match = text.match(pattern);
-    logger6.info(`\u{1F50D} Pattern ${i + 1}: ${pattern} -> match: ${match ? match[0] : "none"}`);
+    logger5.info(`\u{1F50D} Pattern ${i + 1}: ${pattern} -> match: ${match ? match[0] : "none"}`);
     if (match) {
       let filePath = match[1] || match[0];
       filePath = filePath.replace(/^(file:|path:)/i, "").trim();
-      logger6.info(`\u{1F4DD} Cleaned filename: "${filePath}"`);
+      logger5.info(`\u{1F4DD} Cleaned filename: "${filePath}"`);
       if (!filePath.includes("/") && !filePath.includes("\\")) {
         const possibleDataDirs = [
           path4.join(process.cwd(), "data", "examples"),
@@ -1693,20 +1459,20 @@ function extractFilePathFromMessage(message) {
           const fullPath = path4.join(dataDir, filePath);
           try {
             fs4.accessSync(fullPath, fs4.constants.F_OK);
-            logger6.info(`\u2705 Found file: ${fullPath}`);
+            logger5.info(`\u2705 Found file: ${fullPath}`);
             return fullPath;
           } catch {
-            logger6.debug(`\u274C Not found: ${fullPath}`);
+            logger5.debug(`\u274C Not found: ${fullPath}`);
           }
         }
         const defaultPath = path4.join(process.cwd(), "data", "examples", filePath);
-        logger6.info(`\u{1F504} Returning default path: ${defaultPath}`);
+        logger5.info(`\u{1F504} Returning default path: ${defaultPath}`);
         return defaultPath;
       }
       return filePath;
     }
   }
-  logger6.info("\u274C No file path patterns matched");
+  logger5.info("\u274C No file path patterns matched");
   return null;
 }
 function findExampleLogFile() {
@@ -1728,19 +1494,19 @@ function findExampleLogFile() {
       const filePath = path4.join(dataDir, filename);
       try {
         fs4.accessSync(filePath, fs4.constants.F_OK);
-        logger6.info(`\u2705 Found example file: ${filePath}`);
+        logger5.info(`\u2705 Found example file: ${filePath}`);
         return filePath;
       } catch (error) {
-        logger6.debug(`\u274C File not found: ${filePath}`);
+        logger5.debug(`\u274C File not found: ${filePath}`);
       }
     }
   }
-  logger6.warn("\u274C No example log files found in any location");
+  logger5.warn("\u274C No example log files found in any location");
   return null;
 }
 
 // src/actions/diagnostics.ts
-import { logger as logger7 } from "@elizaos/core";
+import { logger as logger6 } from "@elizaos/core";
 import * as path5 from "path";
 import * as fs5 from "fs";
 import { fileURLToPath as fileURLToPath4 } from "url";
@@ -1765,7 +1531,7 @@ var diagnosticsAction = {
   },
   handler: async (runtime, message, _state, _options, callback, _responses) => {
     try {
-      logger7.info("\u{1F50D} Running computational chemistry diagnostics...");
+      logger6.info("\u{1F50D} Running computational chemistry diagnostics...");
       let responseText = "\u{1F50D} **Computational Chemistry Plugin Diagnostics**\n\n";
       const currentDir = process.cwd();
       responseText += `\u{1F4C1} **Current Working Directory:**
@@ -1899,7 +1665,7 @@ var diagnosticsAction = {
       if (callback) await callback(responseContent);
       return responseContent;
     } catch (error) {
-      logger7.error("Error in diagnostics:", error);
+      logger6.error("Error in diagnostics:", error);
       const errorContent = {
         text: `\u274C Diagnostics failed: ${error instanceof Error ? error.message : "Unknown error"}`,
         actions: ["COMPCHEM_DIAGNOSTICS"],
@@ -1930,7 +1696,7 @@ var diagnosticsAction = {
 
 // src/actions/autoKnowledgeAction.ts
 import {
-  logger as logger8
+  logger as logger7
 } from "@elizaos/core";
 var autoKnowledgeAction = {
   name: "AUTO_KNOWLEDGE_STATS",
@@ -1969,7 +1735,7 @@ var autoKnowledgeAction = {
   },
   handler: async (runtime, message, _state, _options, callback, _responses) => {
     try {
-      logger8.info("Handling AUTO_KNOWLEDGE_STATS action");
+      logger7.info("Handling AUTO_KNOWLEDGE_STATS action");
       const autoService = runtime.getService("auto-knowledge");
       if (!autoService) {
         const errorContent = {
@@ -2060,7 +1826,7 @@ ${stats.totalFiles === 0 ? "\n\u{1F680} **Get started:** Copy some Gaussian log 
       if (callback) await callback(responseContent);
       return responseContent;
     } catch (error) {
-      logger8.error("Error in AUTO_KNOWLEDGE_STATS action:", error);
+      logger7.error("Error in AUTO_KNOWLEDGE_STATS action:", error);
       const errorContent = {
         text: `\u274C Failed to get knowledge stats: ${error instanceof Error ? error.message : "Unknown error"}`,
         actions: ["AUTO_KNOWLEDGE_STATS"],
@@ -2118,6 +1884,299 @@ ${stats.totalFiles === 0 ? "\n\u{1F680} **Get started:** Copy some Gaussian log 
     ]
   ]
 };
+
+// src/actions/generateVisualizationAction.ts
+import {
+  logger as logger8
+} from "@elizaos/core";
+import { promises as fs6 } from "fs";
+import * as path6 from "path";
+var generateVisualizationAction = {
+  name: "GENERATE_VISUALIZATION",
+  similes: [
+    "GENERATE_CHARTS",
+    "CREATE_PLOTS",
+    "VISUALIZE_DATA",
+    "PLOT_ANALYSIS",
+    "SHOW_CHARTS",
+    "CREATE_VISUALIZATIONS",
+    "MAKE_PLOTS"
+  ],
+  description: "Generate professional-quality visualizations and charts from the knowledge graph using Python matplotlib",
+  validate: async (_runtime, message, _state) => {
+    const text = message.content.text?.toLowerCase() || "";
+    const keywords = [
+      "visualization",
+      "chart",
+      "plot",
+      "graph",
+      "visualize",
+      "charts",
+      "generate visualization",
+      "create chart",
+      "show plot",
+      "make graph",
+      "energy chart",
+      "frequency plot",
+      "molecular visualization"
+    ];
+    return keywords.some((keyword) => text.includes(keyword));
+  },
+  handler: async (runtime, message, _state, _options, callback, _responses) => {
+    try {
+      logger8.info("Generating visualization from knowledge graph data");
+      const autoService = runtime.getService("auto-knowledge");
+      const pythonService = runtime.getService("python-execution");
+      if (!autoService) {
+        const errorContent = {
+          text: "\u274C Auto knowledge service not available. Please ensure the service is running.",
+          actions: ["GENERATE_VISUALIZATION"],
+          source: message.content.source
+        };
+        if (callback) await callback(errorContent);
+        return errorContent;
+      }
+      if (!pythonService) {
+        const errorContent = {
+          text: "\u274C Python service not available. Charts require Python with matplotlib.",
+          actions: ["GENERATE_VISUALIZATION"],
+          source: message.content.source
+        };
+        if (callback) await callback(errorContent);
+        return errorContent;
+      }
+      const stats = await autoService.getStats();
+      const energyData = await autoService.getEnergies();
+      const molecularData = await autoService.getMolecularData();
+      if (stats.error) {
+        const errorContent = {
+          text: `\u274C Error getting knowledge graph data: ${stats.error}`,
+          actions: ["GENERATE_VISUALIZATION"],
+          source: message.content.source
+        };
+        if (callback) await callback(errorContent);
+        return errorContent;
+      }
+      if (stats.totalFiles === 0) {
+        const errorContent = {
+          text: "\u{1F4CA} No data available for visualization. Please add some Gaussian files to `data/examples/` first.",
+          actions: ["GENERATE_VISUALIZATION"],
+          source: message.content.source
+        };
+        if (callback) await callback(errorContent);
+        return errorContent;
+      }
+      const userQuery = message.content.text?.toLowerCase() || "";
+      const chartType = detectChartType(userQuery);
+      const plotData = prepareDataForPlotting(energyData, molecularData, stats);
+      const timestamp = Date.now();
+      const chartsDir = path6.join(process.cwd(), "data", "charts", `visualization-${timestamp}`);
+      await fs6.mkdir(chartsDir, { recursive: true });
+      let generatedCharts = [];
+      let responseText = "";
+      try {
+        const chartResult = await pythonService.generateVisualization(chartType, plotData, chartsDir);
+        if (chartResult.success && chartResult.chartPath) {
+          generatedCharts.push(chartResult.chartPath);
+          const mainChartPath = chartResult.chartPath;
+          responseText = `\u{1F4CA} **Visualization Generated Successfully**
+
+\u{1F3A8} **Chart Type:** ${getChartTypeDisplayName(chartType)}
+\u{1F4C1} **Location:** \`${path6.relative(process.cwd(), mainChartPath)}\`
+\u{1F4C8} **Data Points:** ${chartResult.dataPoints || "N/A"}
+\u{1F9EA} **Files Analyzed:** ${stats.totalFiles}
+
+**\u{1F4CB} Chart Details:**
+Professional matplotlib visualization generated from knowledge graph data using Python with actual SCF energies and molecular properties.
+
+**\u{1F4A1} Chart Features:**
+\u2022 High-resolution PNG format (300 DPI)
+\u2022 Publication-ready styling
+\u2022 Color-coded data separation
+\u2022 Statistical annotations
+\u2022 Professional typography
+
+**\u{1F50D} Data Summary:**
+\u2022 **Total Energies:** ${Object.keys(energyData.energiesByFile || {}).reduce((sum, file) => sum + (energyData.energiesByFile[file]?.length || 0), 0)}
+\u2022 **Molecules:** ${stats.molecules || 0}  
+\u2022 **Files Processed:** ${stats.totalFiles}
+\u2022 **Analysis Method:** Knowledge graph extraction
+
+**\u{1F4C1} Generated Chart:**
+\u2022 \`${path6.relative(process.cwd(), chartResult.chartPath)}\`
+
+\u{1F310} **View Online:** http://localhost:3000/charts/visualization-${timestamp}/${path6.basename(chartResult.chartPath)}
+
+\u{1F3AF} **Usage:** Perfect for research papers, presentations, and reports!`;
+        } else {
+          responseText = `\u274C **Visualization Generation Failed**
+
+**Error:** ${chartResult.error || "Unknown error occurred"}
+
+**\u{1F4A1} Troubleshooting:**
+\u2022 Check that Python matplotlib is installed
+\u2022 Ensure data contains valid numerical values
+\u2022 Verify Python script can access data
+
+**\u{1F4CA} Available Chart Types:**
+\u2022 \`overview\` - Statistics summary
+\u2022 \`energy\` - SCF energy trends  
+\u2022 \`molecular\` - Molecular properties
+\u2022 \`frequency\` - Vibrational analysis
+
+**\u{1F527} Try:** "Generate overview chart" or "Create energy visualization"`;
+        }
+      } catch (error) {
+        logger8.error("Error generating visualization:", error);
+        responseText = `\u274C **Visualization Error**
+
+**Details:** ${error.message}
+
+**\u{1F527} Solutions:**
+\u2022 Ensure Python and matplotlib are installed
+\u2022 Check that knowledge graph contains data
+\u2022 Verify file permissions for chart directory
+
+**\u{1F4C1} Data Available:**
+\u2022 Files: ${stats.totalFiles}
+\u2022 Energies: ${energyData.totalEnergies || 0}
+\u2022 Molecules: ${stats.molecules || 0}`;
+      }
+      const responseContent = {
+        text: responseText,
+        actions: ["GENERATE_VISUALIZATION"],
+        source: message.content.source,
+        attachments: []
+        // Add attachments array
+      };
+      if (generatedCharts.length > 0) {
+        generatedCharts.forEach((chartPath, index) => {
+          const relativePath = path6.relative(process.cwd(), chartPath);
+          const filename = path6.basename(chartPath);
+          const publicUrl = `/charts/visualization-${timestamp}/${filename}`;
+          responseContent.attachments?.push({
+            id: (Date.now() + index).toString(),
+            url: publicUrl,
+            title: `${getChartTypeDisplayName(chartType)} Chart`,
+            source: "visualization-charts",
+            description: `Generated visualization chart: ${filename}`,
+            text: ""
+          });
+        });
+      }
+      if (callback) await callback(responseContent);
+      return responseContent;
+    } catch (error) {
+      logger8.error("Error in GENERATE_VISUALIZATION action:", error);
+      const errorContent = {
+        text: `\u274C Unexpected error generating visualization: ${error.message}`,
+        actions: ["GENERATE_VISUALIZATION"],
+        source: message.content.source
+      };
+      if (callback) await callback(errorContent);
+      return errorContent;
+    }
+  },
+  examples: [
+    [
+      {
+        name: "{{user1}}",
+        content: {
+          text: "Generate a visualization of the data"
+        }
+      },
+      {
+        name: "{{user2}}",
+        content: {
+          text: "\u{1F4CA} **Visualization Generated Successfully**\n\n\u{1F3A8} **Chart Type:** Overview Statistics\n\u{1F4C1} **Location:** `data/charts/visualization-1234567890/overview.png`\n\u{1F4C8} **Data Points:** 45\n\u{1F9EA} **Files Analyzed:** 2\n\n**\u{1F4A1} Chart Features:**\n\u2022 High-resolution PNG format (300 DPI)\n\u2022 Publication-ready styling\n\u2022 Color-coded data separation",
+          actions: ["GENERATE_VISUALIZATION"]
+        }
+      }
+    ],
+    [
+      {
+        name: "{{user1}}",
+        content: {
+          text: "Create energy plots"
+        }
+      },
+      {
+        name: "{{user2}}",
+        content: {
+          text: "\u{1F4CA} **Energy Visualization Generated**\n\n\u{1F3A8} **Chart Type:** SCF Energy Trends\n\u{1F4C8} **Data Points:** 12 energies across 2 files\n\u{1F4C1} **Location:** `data/charts/visualization-1234567890/energy.png`\n\n**\u{1F50D} Analysis Shows:**\n\u2022 Energy convergence patterns\n\u2022 File-by-file comparison\n\u2022 Statistical annotations",
+          actions: ["GENERATE_VISUALIZATION"]
+        }
+      }
+    ],
+    [
+      {
+        name: "{{user1}}",
+        content: {
+          text: "Show me charts of the molecular data"
+        }
+      },
+      {
+        name: "{{user2}}",
+        content: {
+          text: "\u{1F4CA} **Molecular Visualization Created**\n\n\u{1F3A8} **Chart Type:** Molecular Properties\n\u{1F9EA} **Files Analyzed:** 2\n\u{1F4C8} **Properties:** Atoms, formulas, charges\n\u{1F4C1} **Location:** `data/charts/visualization-1234567890/molecular.png`\n\n**\u{1F4A1} Perfect for:** Research presentations and data analysis",
+          actions: ["GENERATE_VISUALIZATION"]
+        }
+      }
+    ]
+  ]
+};
+function detectChartType(userQuery) {
+  if (userQuery.includes("energy") || userQuery.includes("scf")) {
+    return "energy";
+  } else if (userQuery.includes("molecular") || userQuery.includes("molecule")) {
+    return "molecular";
+  } else if (userQuery.includes("frequency") || userQuery.includes("vibrational")) {
+    return "frequency";
+  } else if (userQuery.includes("overview") || userQuery.includes("summary") || userQuery.includes("statistics")) {
+    return "overview";
+  } else {
+    return "overview";
+  }
+}
+function getChartTypeDisplayName(chartType) {
+  const names = {
+    "overview": "Overview Statistics",
+    "energy": "SCF Energy Trends",
+    "molecular": "Molecular Properties",
+    "frequency": "Vibrational Analysis"
+  };
+  return names[chartType] || "Custom Visualization";
+}
+function prepareDataForPlotting(energyData, molecularData, stats) {
+  return {
+    stats: {
+      molecules: stats.molecules || 0,
+      scfEnergies: stats.scfEnergies || 0,
+      frequencies: stats.frequencies || 0,
+      atoms: stats.atoms || 0,
+      totalFiles: stats.totalFiles || 0,
+      enhanced: false
+      // V2 uses basic parsing
+    },
+    energyData: energyData.energiesByFile || {},
+    molecularData: molecularData.moleculesByFile || {},
+    fileData: combineFileData(energyData.energiesByFile || {}, molecularData.moleculesByFile || {})
+  };
+}
+function combineFileData(energies, molecules) {
+  const combined = {};
+  for (const [filename, energyList] of Object.entries(energies)) {
+    combined[filename] = {
+      energyData: Array.isArray(energyList) ? energyList.map((e) => e.hartree) : [],
+      molecularData: molecules[filename] || {},
+      homoLumoData: [],
+      // Not available in V2 basic parsing
+      frequencyData: []
+      // Not available in V2 basic parsing
+    };
+  }
+  return combined;
+}
 
 // src/plugin.ts
 var configSchema = z.object({
@@ -2331,7 +2390,7 @@ var myCompchemPlugin = {
     ]
   },
   services: [PythonService, CompchemService, AutoKnowledgeService],
-  actions: [helloWorldAction, analyzeMolecularDataAction, generateVisualizationAction, parseGaussianFileAction, diagnosticsAction, autoKnowledgeAction],
+  actions: [helloWorldAction, analyzeMolecularDataAction, parseGaussianFileAction, diagnosticsAction, autoKnowledgeAction, generateVisualizationAction],
   providers: [helloWorldProvider],
   tests: [StarterPluginTestSuite]
   // dependencies: ['@elizaos/plugin-knowledge'], <--- plugin dependecies go here (if requires another plugin)

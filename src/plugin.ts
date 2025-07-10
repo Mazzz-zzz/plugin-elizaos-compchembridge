@@ -21,10 +21,10 @@ import { PythonService } from './services/pythonService';
 import { DeploymentService } from './services/deploymentService';
 import { AutoKnowledgeService } from './services/autoKnowledgeService';
 import { analyzeMolecularDataAction } from './actions/analyzeMolecularData';
-import { generateVisualizationAction } from './actions/generateVisualization';
 import { parseGaussianFileAction } from './actions/parseGaussianFile';
 import { diagnosticsAction } from './actions/diagnostics';
 import { autoKnowledgeAction } from './actions/autoKnowledgeAction';
+import { generateVisualizationAction } from './actions/generateVisualizationAction';
 
 /**
  * Defines the configuration schema for the computational chemistry plugin
@@ -326,7 +326,7 @@ export const myCompchemPlugin: Plugin = {
     ],
   },
   services: [PythonService, CompchemService, AutoKnowledgeService],
-  actions: [helloWorldAction, analyzeMolecularDataAction, generateVisualizationAction, parseGaussianFileAction, diagnosticsAction, autoKnowledgeAction],
+  actions: [helloWorldAction, analyzeMolecularDataAction, parseGaussianFileAction, diagnosticsAction, autoKnowledgeAction, generateVisualizationAction],
   providers: [helloWorldProvider],
   tests: [StarterPluginTestSuite],
   // dependencies: ['@elizaos/plugin-knowledge'], <--- plugin dependecies go here (if requires another plugin)

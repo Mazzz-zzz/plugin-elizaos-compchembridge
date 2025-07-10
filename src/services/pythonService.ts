@@ -166,20 +166,21 @@ export class PythonService extends Service {
   }
 
   /**
-   * Generate visualization data using Python
+   * Generate visualization charts using Python matplotlib
    */
   async generateVisualization(
-    molecularData: any,
-    outputPath?: string
+    chartType: string,
+    plotData: any,
+    outputDir: string
   ): Promise<any> {
     try {
-      // Try to find the Python script in various locations
+      // Try to find the Python plotting script
       const possibleScriptPaths = [
-        path.join(process.cwd(), 'py', 'molecular_analyzer.py'),
-        path.join(__dirname, '..', '..', 'py', 'molecular_analyzer.py'),
-        path.join(__dirname, '..', '..', '..', 'py', 'molecular_analyzer.py'),
-        path.join(process.cwd(), 'plugins', 'my-compchem-plugin-v2', 'py', 'molecular_analyzer.py'),
-        './py/molecular_analyzer.py'
+        path.join(process.cwd(), 'py', 'plot_gaussian_analysis.py'),
+        path.join(__dirname, '..', '..', 'py', 'plot_gaussian_analysis.py'),
+        path.join(__dirname, '..', '..', '..', 'py', 'plot_gaussian_analysis.py'),
+        path.join(process.cwd(), 'plugins', 'my-compchem-plugin-v2', 'py', 'plot_gaussian_analysis.py'),
+        './py/plot_gaussian_analysis.py'
       ];
 
       let scriptPath: string | null = null;
@@ -194,26 +195,39 @@ export class PythonService extends Service {
       }
 
       if (!scriptPath) {
-        throw new Error(`Python script not found. Tried paths: ${possibleScriptPaths.join(', ')}`);
+        throw new Error(`Python plotting script not found. Tried paths: ${possibleScriptPaths.join(', ')}`);
       }
 
-      const dataJson = JSON.stringify(molecularData);
-      
-      const args = [dataJson, '--analysis_type', 'visualization'];
-      if (outputPath) {
-        args.push('--output', outputPath);
-      }
-      
+      // Generate output filename based on chart type
+      const outputFileName = `${chartType}_chart.png`;
+      const outputPath = path.join(outputDir, outputFileName);
+
+      const dataJson = JSON.stringify(plotData);
+      const args = [chartType, dataJson, outputPath];
+        
       const result = await this.executePythonScript(scriptPath, args);
       
-      if (outputPath) {
-        return { success: true, outputPath };
-      } else {
-        return JSON.parse(result);
+      // Count data points for reporting
+      let dataPoints = 0;
+      if (plotData.energyData) {
+        const energyCount = Object.values(plotData.energyData).reduce((sum: number, energies: any) => 
+          sum + (Array.isArray(energies) ? energies.length : 0), 0) as number;
+        dataPoints += energyCount;
       }
+      
+      return { 
+        success: true, 
+        chartPath: outputPath,
+        dataPoints,
+        description: `${chartType} chart generated with ${dataPoints} data points`,
+        message: result 
+      };
     } catch (error) {
       logger.error('Visualization generation failed:', error);
-      throw error;
+      return { 
+        error: error instanceof Error ? error.message : 'Unknown error', 
+        success: false 
+      };
     }
   }
 
