@@ -7,6 +7,11 @@ import { execFile, spawn } from 'child_process';
 import { promisify } from 'util';
 import * as path from 'path';
 import { promises as fs } from 'fs';
+import { fileURLToPath } from 'url';
+
+// ES modules equivalent of __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const execFileAsync = promisify(execFile);
 
@@ -121,7 +126,30 @@ export class PythonService extends Service {
     analysisType: 'molecular' | 'energy' | 'visualization' = 'molecular'
   ): Promise<any> {
     try {
-      const scriptPath = path.join(process.cwd(), 'py', 'molecular_analyzer.py');
+      // Try to find the Python script in various locations
+      const possibleScriptPaths = [
+        path.join(process.cwd(), 'py', 'molecular_analyzer.py'),
+        path.join(__dirname, '..', '..', 'py', 'molecular_analyzer.py'),
+        path.join(__dirname, '..', '..', '..', 'py', 'molecular_analyzer.py'),
+        path.join(process.cwd(), 'plugins', 'my-compchem-plugin-v2', 'py', 'molecular_analyzer.py'),
+        './py/molecular_analyzer.py'
+      ];
+
+      let scriptPath: string | null = null;
+      for (const possiblePath of possibleScriptPaths) {
+        try {
+          await fs.access(possiblePath);
+          scriptPath = possiblePath;
+          break;
+        } catch {
+          // Script doesn't exist at this path, continue
+        }
+      }
+
+      if (!scriptPath) {
+        throw new Error(`Python script not found. Tried paths: ${possibleScriptPaths.join(', ')}`);
+      }
+
       const dataJson = JSON.stringify(molecularData);
       
       const result = await this.executePythonScript(scriptPath, [
@@ -144,7 +172,30 @@ export class PythonService extends Service {
     outputPath?: string
   ): Promise<any> {
     try {
-      const scriptPath = path.join(process.cwd(), 'py', 'molecular_analyzer.py');
+      // Try to find the Python script in various locations
+      const possibleScriptPaths = [
+        path.join(process.cwd(), 'py', 'molecular_analyzer.py'),
+        path.join(__dirname, '..', '..', 'py', 'molecular_analyzer.py'),
+        path.join(__dirname, '..', '..', '..', 'py', 'molecular_analyzer.py'),
+        path.join(process.cwd(), 'plugins', 'my-compchem-plugin-v2', 'py', 'molecular_analyzer.py'),
+        './py/molecular_analyzer.py'
+      ];
+
+      let scriptPath: string | null = null;
+      for (const possiblePath of possibleScriptPaths) {
+        try {
+          await fs.access(possiblePath);
+          scriptPath = possiblePath;
+          break;
+        } catch {
+          // Script doesn't exist at this path, continue
+        }
+      }
+
+      if (!scriptPath) {
+        throw new Error(`Python script not found. Tried paths: ${possibleScriptPaths.join(', ')}`);
+      }
+
       const dataJson = JSON.stringify(molecularData);
       
       const args = [dataJson, '--analysis_type', 'visualization'];
@@ -174,9 +225,31 @@ export class PythonService extends Service {
     outputFormat: 'json' | 'turtle' = 'json'
   ): Promise<any> {
     try {
-      const scriptPath = path.join(process.cwd(), 'py', 'parse_gaussian_cclib.py');
+      // Try to find the Python script in various locations
+      const possibleScriptPaths = [
+        path.join(process.cwd(), 'py', 'parse_gaussian_cclib.py'),
+        path.join(__dirname, '..', '..', 'py', 'parse_gaussian_cclib.py'),
+        path.join(__dirname, '..', '..', '..', 'py', 'parse_gaussian_cclib.py'),
+        path.join(process.cwd(), 'plugins', 'my-compchem-plugin-v2', 'py', 'parse_gaussian_cclib.py'),
+        './py/parse_gaussian_cclib.py'
+      ];
+
+      let scriptPath: string | null = null;
+      for (const possiblePath of possibleScriptPaths) {
+        try {
+          await fs.access(possiblePath);
+          scriptPath = possiblePath;
+          break;
+        } catch {
+          // Script doesn't exist at this path, continue
+        }
+      }
+
+      if (!scriptPath) {
+        throw new Error(`Python script not found. Tried paths: ${possibleScriptPaths.join(', ')}`);
+      }
+
       const metadataJson = JSON.stringify(metadata);
-      
       const args = [filePath, metadataJson, '--format', outputFormat];
       
       const result = await this.executePythonScript(scriptPath, args);
@@ -201,9 +274,31 @@ export class PythonService extends Service {
     outputPath?: string
   ): Promise<any> {
     try {
-      const scriptPath = path.join(process.cwd(), 'py', 'plot_gaussian_analysis.py');
+      // Try to find the Python script in various locations
+      const possibleScriptPaths = [
+        path.join(process.cwd(), 'py', 'plot_gaussian_analysis.py'),
+        path.join(__dirname, '..', '..', 'py', 'plot_gaussian_analysis.py'),
+        path.join(__dirname, '..', '..', '..', 'py', 'plot_gaussian_analysis.py'),
+        path.join(process.cwd(), 'plugins', 'my-compchem-plugin-v2', 'py', 'plot_gaussian_analysis.py'),
+        './py/plot_gaussian_analysis.py'
+      ];
+
+      let scriptPath: string | null = null;
+      for (const possiblePath of possibleScriptPaths) {
+        try {
+          await fs.access(possiblePath);
+          scriptPath = possiblePath;
+          break;
+        } catch {
+          // Script doesn't exist at this path, continue
+        }
+      }
+
+      if (!scriptPath) {
+        throw new Error(`Python script not found. Tried paths: ${possibleScriptPaths.join(', ')}`);
+      }
+
       const dataJson = JSON.stringify(data);
-      
       const args = outputPath 
         ? [chartType, dataJson, outputPath]
         : [chartType, dataJson];

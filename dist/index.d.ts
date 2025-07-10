@@ -69,4 +69,9 @@ declare const generateVisualizationAction: Action;
  */
 declare const parseGaussianFileAction: Action;
 
-export { CompchemService, PythonService, analyzeMolecularDataAction, myCompchemPlugin as default, generateVisualizationAction, myCompchemPlugin, parseGaussianFileAction };
+/**
+ * Diagnostic action to help debug path and environment issues
+ */
+declare const diagnosticsAction: Action;
+
+export { CompchemService, PythonService, analyzeMolecularDataAction, myCompchemPlugin as default, diagnosticsAction, generateVisualizationAction, myCompchemPlugin, parseGaussianFileAction };

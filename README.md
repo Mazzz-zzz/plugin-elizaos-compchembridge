@@ -258,6 +258,105 @@ This will show detailed Python execution logs.
 - [Python Scientific Computing](https://scipy.org/)
 - [Computational Chemistry](https://en.wikipedia.org/wiki/Computational_chemistry)
 
+## 🔧 **Troubleshooting**
+
+### **❌ "No Gaussian log file specified" Error**
+
+If you see this error, the plugin can't find your data files. Here's how to fix it:
+
+1. **Run diagnostics first:**
+   ```
+   Ask your agent: "Run diagnostics"
+   ```
+   This will show you:
+   - Current working directory
+   - Where the plugin is looking for files
+   - What files are found/missing
+
+2. **Check file locations:**
+   The plugin looks for files in these locations:
+   - `./data/examples/` (relative to current directory)
+   - `py/` directory for Python scripts
+   - Various plugin-specific paths
+
+3. **Copy files to the correct location:**
+   ```bash
+   # Create directories
+   mkdir -p data/examples
+   mkdir -p py
+   
+   # Copy your log files
+   cp /path/to/your/files/*.log data/examples/
+   
+   # Ensure Python scripts are present
+   ls py/parse_gaussian_cclib.py  # Should exist
+   ```
+
+### **❌ Python Environment Issues**
+
+1. **Check Python installation:**
+   ```bash
+   python3 --version
+   which python3
+   ```
+
+2. **Install required packages:**
+   ```bash
+   pip install cclib numpy scipy matplotlib pandas
+   ```
+
+3. **Test cclib directly:**
+   ```bash
+   python3 -c "import cclib; print(cclib.__version__)"
+   ```
+
+### **❌ Path Resolution Issues**
+
+The plugin automatically searches multiple locations:
+- Current working directory
+- Plugin directory (relative to `__dirname`)
+- ElizaOS plugin directory structure
+
+If files still aren't found:
+1. Run diagnostics to see current paths
+2. Copy files to the reported current working directory
+3. Use absolute file paths in your requests
+
+### **🔍 Debug Commands**
+
+```bash
+# Check current directory structure
+find . -name "*.log" -o -name "*.py" | head -10
+
+# Test Python integration directly  
+python3 py/parse_gaussian_cclib.py data/examples/lactone.log '{}' --format json
+
+# Check Python packages
+python3 -c "import sys; print('\n'.join(sys.path))"
+```
+
+### **💡 Usage Examples with Troubleshooting**
+
+#### **Parse Gaussian Files**
+- "Can you parse the lactone.log Gaussian file?"
+- "Analyze the TolueneEnergy.log computational chemistry file"
+- "Parse this Gaussian output file: path/to/file.log"
+
+#### **Molecular Analysis**  
+- "Analyze this molecule: C6H6 benzene ring"
+- "Calculate properties for molecular formula C2H2O2"
+- "What are the energy characteristics of this compound?"
+
+#### **Generate Visualizations**
+- "Create a molecular structure diagram for C6H6"
+- "Generate a visualization of the lactone molecule"
+- "Show me the molecular structure"
+
+#### **Diagnostics**
+- "Run diagnostics to check if everything is working"
+- "Debug the computational chemistry plugin"
+- "Check environment and file paths"
+
 ## 🤝 Contributing
 
 1. Fork the repository

@@ -9,6 +9,12 @@ import type {
 import { logger } from '@elizaos/core';
 import { PythonService } from '../services/pythonService';
 import * as path from 'path';
+import * as fs from 'fs';
+import { fileURLToPath } from 'url';
+
+// ES modules equivalent of __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
  * Action for parsing Gaussian log files using cclib
@@ -77,11 +83,32 @@ export const parseGaussianFileAction: Action = {
       }
 
       // Extract file path from message or use example files
-      const filePath = extractFilePathFromMessage(message) || findExampleLogFile();
+      logger.info(`🔍 Attempting to extract file path from message: "${message.content.text}"`);
+      const extractedPath = extractFilePathFromMessage(message);
+      logger.info(`📝 Extracted path result: ${extractedPath}`);
+      
+      let filePath = extractedPath;
+      if (!filePath) {
+        logger.info('🔍 No file path extracted from message, looking for example files...');
+        filePath = findExampleLogFile();
+        logger.info(`📁 Example file search result: ${filePath}`);
+      }
       
       if (!filePath) {
+        const currentDir = process.cwd();
+        logger.error(`❌ No file found. CWD: ${currentDir}, __dirname: ${__dirname}`);
+        
+        // Let's check what's actually in the directories
+        const testDir = path.join(currentDir, 'data', 'examples');
+        try {
+          const files = require('fs').readdirSync(testDir);
+          logger.info(`📂 Files in ${testDir}: ${files.join(', ')}`);
+        } catch (error) {
+          logger.error(`❌ Cannot read directory ${testDir}: ${error.message}`);
+        }
+        
         const errorContent: Content = {
-          text: '❌ No Gaussian log file specified. Please provide a file path or add log files to the data/examples/ directory.',
+          text: `❌ No Gaussian log file specified. Please provide a file path or add log files to the data/examples/ directory.\n\n🔍 **Current working directory:** ${currentDir}\n\n📁 **Looking for files in:**\n• ${path.join(currentDir, 'data', 'examples')}\n• ./data/examples/\n• Plugin directory data/examples/\n\n💡 **Example usage:** "Parse the lactone.log file" or "Analyze TolueneEnergy.log"`,
           actions: ['PARSE_GAUSSIAN_FILE'],
           source: message.content.source,
         };
@@ -254,33 +281,61 @@ export const parseGaussianFileAction: Action = {
  */
 function extractFilePathFromMessage(message: Memory): string | null {
   const text = message.content.text;
+  logger.info(`🔍 extractFilePathFromMessage: text = "${text}"`);
   if (!text) return null;
 
   // Look for file path patterns
   const filePatterns = [
     /(?:file:|path:)?\s*([^\s]+\.(?:log|out))/gi,
-    /([^\s]+lactone\.log)/gi,
-    /([^\s]+TolueneEnergy\.log)/gi,
-    /([^\s]+\.(?:log|out))/gi
+    /([^\s]*lactone\.log)/gi,
+    /([^\s]*TolueneEnergy\.log)/gi,
+    /([^\s]*\.(?:log|out))/gi
   ];
 
-  for (const pattern of filePatterns) {
+  for (let i = 0; i < filePatterns.length; i++) {
+    const pattern = filePatterns[i];
     const match = text.match(pattern);
+    logger.info(`🔍 Pattern ${i + 1}: ${pattern} -> match: ${match ? match[0] : 'none'}`);
+    
     if (match) {
       let filePath = match[1] || match[0];
       
       // Clean up the path
       filePath = filePath.replace(/^(file:|path:)/i, '').trim();
+      logger.info(`📝 Cleaned filename: "${filePath}"`);
       
-      // If it's just a filename, look in data/examples/
+      // If it's just a filename, try to find it in various locations
       if (!filePath.includes('/') && !filePath.includes('\\')) {
-        filePath = path.join(process.cwd(), 'data', 'examples', filePath);
+        const possibleDataDirs = [
+          path.join(process.cwd(), 'data', 'examples'),
+          path.join(__dirname, '..', '..', 'data', 'examples'),
+          path.join(__dirname, '..', '..', '..', 'data', 'examples'),
+          path.join(process.cwd(), 'plugins', 'my-compchem-plugin-v2', 'data', 'examples'),
+          './data/examples'
+        ];
+
+        for (const dataDir of possibleDataDirs) {
+          const fullPath = path.join(dataDir, filePath);
+          try {
+            fs.accessSync(fullPath, fs.constants.F_OK);
+            logger.info(`✅ Found file: ${fullPath}`);
+            return fullPath;
+          } catch {
+            logger.debug(`❌ Not found: ${fullPath}`);
+          }
+        }
+        
+        // If not found, return the default path
+        const defaultPath = path.join(process.cwd(), 'data', 'examples', filePath);
+        logger.info(`🔄 Returning default path: ${defaultPath}`);
+        return defaultPath;
       }
       
       return filePath;
     }
   }
 
+  logger.info('❌ No file path patterns matched');
   return null;
 }
 
@@ -288,20 +343,38 @@ function extractFilePathFromMessage(message: Memory): string | null {
  * Find an example log file to use for demonstration
  */
 function findExampleLogFile(): string | null {
-  const exampleFiles = [
-    path.join(process.cwd(), 'data', 'examples', 'lactone.log'),
-    path.join(process.cwd(), 'data', 'examples', 'TolueneEnergy.log')
+  // Try multiple possible locations for the data files
+  const possibleDataDirs = [
+    // Current working directory
+    path.join(process.cwd(), 'data', 'examples'),
+    // Plugin directory (if running from plugin root)
+    path.join(__dirname, '..', '..', 'data', 'examples'),
+    // Relative to dist directory (if running from built plugin)
+    path.join(__dirname, '..', '..', '..', 'data', 'examples'),
+    // ElizaOS plugin directory structure
+    path.join(process.cwd(), 'plugins', 'my-compchem-plugin-v2', 'data', 'examples'),
+    // Direct relative path
+    './data/examples'
   ];
 
-  // Return the first file that exists
-  for (const file of exampleFiles) {
-    try {
-      require('fs').accessSync(file);
-      return file;
-    } catch {
-      // File doesn't exist, continue
+  const exampleFiles = ['lactone.log', 'TolueneEnergy.log'];
+
+  // Try each directory with each file
+  for (const dataDir of possibleDataDirs) {
+    for (const filename of exampleFiles) {
+      const filePath = path.join(dataDir, filename);
+      try {
+        // Use proper ES modules fs import
+        fs.accessSync(filePath, fs.constants.F_OK);
+        logger.info(`✅ Found example file: ${filePath}`);
+        return filePath;
+      } catch (error) {
+        // File doesn't exist, continue
+        logger.debug(`❌ File not found: ${filePath}`);
+      }
     }
   }
 
+  logger.warn('❌ No example log files found in any location');
   return null;
 } 

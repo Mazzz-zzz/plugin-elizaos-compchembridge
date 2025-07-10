@@ -21,6 +21,7 @@ import { PythonService } from './services/pythonService';
 import { analyzeMolecularDataAction } from './actions/analyzeMolecularData';
 import { generateVisualizationAction } from './actions/generateVisualization';
 import { parseGaussianFileAction } from './actions/parseGaussianFile';
+import { diagnosticsAction } from './actions/diagnostics';
 
 /**
  * Defines the configuration schema for the computational chemistry plugin
@@ -313,7 +314,7 @@ export const myCompchemPlugin: Plugin = {
     ],
   },
   services: [PythonService, CompchemService],
-  actions: [helloWorldAction, analyzeMolecularDataAction, generateVisualizationAction, parseGaussianFileAction],
+  actions: [helloWorldAction, analyzeMolecularDataAction, generateVisualizationAction, parseGaussianFileAction, diagnosticsAction],
   providers: [helloWorldProvider],
   tests: [StarterPluginTestSuite],
   // dependencies: ['@elizaos/plugin-knowledge'], <--- plugin dependecies go here (if requires another plugin)
