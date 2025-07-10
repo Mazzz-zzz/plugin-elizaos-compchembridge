@@ -134,12 +134,12 @@ export const generateReportAction: Action = {
           const serverUrl = process.env.SERVER_URL || 'http://localhost:3000';
           const dashboardFilename = path.basename(reportResult.dashboard_path);
           
-          responseText = `📊 **Comprehensive Analysis Report Generated**
+          responseText = `📊 Comprehensive Analysis Report Generated
 
-🎯 **Dashboard:** http://localhost:3000/reports/comprehensive-${timestamp}/${dashboardFilename}
-📈 **Analysis Files:** ${reportResult.total_files} detailed reports
-🧪 **Data Sources:** ${stats.totalFiles} Gaussian files
-⏰ **Generated:** ${reportResult.timestamp}
+Dashboard: http://localhost:3000/reports/comprehensive-${timestamp}/${dashboardFilename}
+Analysis Files: ${reportResult.total_files} detailed reports
+Data Sources: ${stats.totalFiles} Gaussian files
+Generated: ${reportResult.timestamp}
 
 ## 📋 Report Contents
 ✅ **Main Dashboard** - Overview with key statistics
@@ -150,10 +150,10 @@ export const generateReportAction: Action = {
 ## 🔍 Key Findings
 ${generateKeyFindings(stats, energyData, molecularData)}
 
-📁 **Local Path:** \`${path.relative(process.cwd(), reportsDir)}\``;
+Local Path: \`${path.relative(process.cwd(), reportsDir)}\``;
 
         } else {
-          responseText = `❌ **Report Generation Failed**
+          responseText = `Report Generation Failed
 
 **Error:** ${reportResult.error || 'Unknown error'}
 
@@ -170,32 +170,18 @@ ${generateKeyFindings(stats, energyData, molecularData)}
         text: responseText,
         actions: ['GENERATE_COMPREHENSIVE_REPORT'],
         source: message.content.source,
-        attachments: [],
       };
 
-      // Add report attachments with static URLs (avoid base64 for context efficiency)
+      // Add local file paths for user reference (no attachments to avoid payload issues)
       if (reportFiles.length > 0) {
-        const attachmentPromises = reportFiles.map(async (reportPath: string, index: number) => {
+        const fileList = reportFiles.map((reportPath: string) => {
           const filename = path.basename(reportPath);
           const relativePath = path.relative(process.cwd(), reportPath);
-          
-          const serverUrl = process.env.SERVER_URL || 'http://localhost:3000';
-          const staticUrl = `${serverUrl}/reports/comprehensive-${timestamp}/${filename}`;
-          
-          logger.info(`Serving report as static URL: ${filename}`);
-          
-          return {
-            id: (Date.now() + index).toString(),
-            url: staticUrl,
-            title: getReportTitle(filename),
-            source: "comprehensive-report", 
-            description: `Report: ${filename}`,
-            text: relativePath,
-          };
-        });
+          return `  • ${getReportTitle(filename)}: \`${relativePath}\``;
+        }).join('\n');
         
-        const attachments = await Promise.all(attachmentPromises);
-        responseContent.attachments?.push(...attachments);
+        responseText += `\n\n📁 **Generated Reports:**\n${fileList}`;
+        logger.info(`Generated ${reportFiles.length} report files without attachments to avoid payload issues`);
       }
 
       if (callback) await callback(responseContent);
@@ -226,7 +212,7 @@ ${generateKeyFindings(stats, energyData, molecularData)}
       {
         name: '{{user2}}',
         content: {
-          text: '📊 **Comprehensive Analysis Report Generated**\n\n🎯 **Dashboard:** Available with overview statistics\n📈 **Analysis Files:** 4 detailed reports created\n🧪 **Data Sources:** 2 Gaussian files analyzed\n\n## 📋 Report Contents\n✅ **Main Dashboard** - Overview with key statistics\n✅ **Energy Analysis** - Detailed SCF energy trends\n✅ **Molecular Analysis** - Molecular properties\n✅ **File Comparison** - Cross-file analysis\n\n## 🔍 Key Findings\n• 2 molecules analyzed with 15 SCF energies\n• Energy range: -154.123 to -98.456 Hartree\n• Molecular formulas: C7H6O2, C7H8\n• Atom counts: 15-15 atoms per molecule\n\n📁 **Local Path:** `data/reports/comprehensive-1234567890`',
+          text: '📊 **Comprehensive Analysis Report Generated**\n\n🎯 **Dashboard:** Generated with comprehensive analysis\n📈 **Analysis Files:** 4 detailed reports\n🧪 **Data Sources:** 2 Gaussian files\n\n## 📋 Report Contents\n✅ **Main Dashboard** - Overview with key statistics\n✅ **Energy Analysis** - Detailed SCF energy trends\n✅ **Molecular Analysis** - Molecular properties\n✅ **File Comparison** - Cross-file analysis\n\n## 🔍 Key Findings\n• 2 molecules analyzed with 15 SCF energies\n• Energy range: -154.123 to -98.456 Hartree\n• Molecular formulas: C7H6O2, C7H8\n• Atom counts: 15-15 atoms per molecule\n\n📁 **Generated Reports:**\n  • Main Dashboard: `data/reports/comprehensive-1234567890/comprehensive_dashboard.png`\n  • Energy Analysis: `data/reports/comprehensive-1234567890/detailed_energy_analysis.png`\n  • Molecular Analysis: `data/reports/comprehensive-1234567890/detailed_molecular_analysis.png`\n  • File Comparison: `data/reports/comprehensive-1234567890/file_comparison_analysis.png`',
           actions: ['GENERATE_COMPREHENSIVE_REPORT'],
         },
       },
@@ -241,7 +227,7 @@ ${generateKeyFindings(stats, energyData, molecularData)}
       {
         name: '{{user2}}',
         content: {
-          text: '📊 **Comprehensive Analysis Report Generated**\n\n🎯 **Dashboard:** Complete overview with visualizations\n📈 **Analysis Files:** 3 detailed reports\n🧪 **Data Sources:** 1 Gaussian file\n\n## 📋 Report Contents\n✅ **Main Dashboard** - Statistical overview\n✅ **Energy Analysis** - SCF convergence analysis\n✅ **Molecular Analysis** - Structural properties\n\n## 🔍 Key Findings\n• Single molecule: C7H6O2 (lactone)\n• 8 SCF energy calculations\n• 15 atoms total\n• Energy convergence achieved\n\nPerfect for research documentation and analysis review!',
+          text: '📊 Comprehensive Analysis Report Generated\n\nDashboard: Complete overview with visualizations\nAnalysis Files: 3 detailed reports\nData Sources: 1 Gaussian file\n\nReport Contents:\n• Main Dashboard - Statistical overview\n• Energy Analysis - SCF convergence analysis\n• Molecular Analysis - Structural properties\n\nKey Findings:\n• Single molecule: C7H6O2 (lactone)\n• 8 SCF energy calculations\n• 15 atoms total\n• Energy convergence achieved\n\nPerfect for research documentation and analysis review.',
           actions: ['GENERATE_COMPREHENSIVE_REPORT'],
         },
       },
@@ -256,7 +242,7 @@ ${generateKeyFindings(stats, energyData, molecularData)}
       {
         name: '{{user2}}',
         content: {
-          text: '📊 **Comprehensive Analysis Report Generated**\n\n🎯 **Dashboard:** Multi-panel overview with charts\n📈 **Analysis Files:** 4 detailed visualizations\n🧪 **Data Sources:** 2 Gaussian files analyzed\n\n## 📋 Report Contents\n✅ **Main Dashboard** - 6-panel overview\n✅ **Energy Analysis** - Distribution and trends\n✅ **Molecular Analysis** - Properties and statistics\n✅ **File Comparison** - Comparative analysis\n\n## 🔍 Key Findings\n• Multiple molecular systems compared\n• Energy statistics and distributions\n• Molecular diversity analysis\n• Data completeness assessment\n\n📊 **Professional quality** - Publication ready charts!',
+          text: '📊 Comprehensive Analysis Report Generated\n\nDashboard: Multi-panel overview with charts\nAnalysis Files: 4 detailed visualizations\nData Sources: 2 Gaussian files analyzed\n\nReport Contents:\n• Main Dashboard - 6-panel overview\n• Energy Analysis - Distribution and trends\n• Molecular Analysis - Properties and statistics\n• File Comparison - Comparative analysis\n\nKey Findings:\n• Multiple molecular systems compared\n• Energy statistics and distributions\n• Molecular diversity analysis\n• Data completeness assessment\n\nProfessional quality charts suitable for publications.',
           actions: ['GENERATE_COMPREHENSIVE_REPORT'],
         },
       },

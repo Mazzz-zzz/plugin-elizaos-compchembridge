@@ -874,7 +874,34 @@ var AutoKnowledgeService = class _AutoKnowledgeService extends Service2 {
         await fs3.appendFile(this.knowledgeGraphPath, contentToAppend, "utf-8");
         this.processedFiles.add(filename);
         const tripleCount = (rdfContent.match(/\./g) || []).length;
-        logger3.info(`\u2705 Auto-added ${tripleCount} triples from ${filename}`);
+        const successMessage = `\u2705 Auto-added ${tripleCount} triples from ${filename}`;
+        logger3.info(successMessage);
+        try {
+          const chatMessage = `\u{1F9E0} **Auto Knowledge Update**
+
+${successMessage}
+
+\u{1F4C1} **File:** \`${filename}\`
+\u{1F4CA} **Triples Added:** ${tripleCount}
+\u23F0 **Processed:** ${(/* @__PURE__ */ new Date()).toLocaleString()}`;
+          const messageManager = this.runtime.messageManager;
+          if (messageManager) {
+            await messageManager.createMemory({
+              userId: this.runtime.agentId,
+              agentId: this.runtime.agentId,
+              roomId: this.runtime.agentId,
+              // Use agent's room for system messages
+              content: {
+                text: chatMessage,
+                source: "auto-knowledge-service"
+              },
+              createdAt: Date.now()
+            });
+            logger3.debug(`\u{1F4E8} Sent chat message for ${filename}`);
+          }
+        } catch (chatError) {
+          logger3.debug("Could not send message to chat:", chatError.message);
+        }
       } else {
         logger3.error(`\u274C Could not parse ${filename}: Invalid or empty RDF content`);
       }
@@ -2051,34 +2078,20 @@ var generateVisualizationAction = {
       const responseContent = {
         text: responseText,
         actions: ["GENERATE_VISUALIZATION"],
-        source: message.content.source,
-        attachments: []
-        // Add attachments array - this is for CLIENT DISPLAY ONLY
+        source: message.content.source
       };
       if (generatedCharts.length > 0) {
-        const attachmentPromises = generatedCharts.map(async (chartPath, index) => {
+        const chartList = generatedCharts.map((chartPath) => {
           const filename = path6.basename(chartPath);
           const relativePath = path6.relative(process.cwd(), chartPath);
-          const serverUrl = process.env.SERVER_URL || "http://localhost:3000";
-          const staticUrl = `${serverUrl}/charts/visualization-${timestamp}/${filename}`;
-          logger8.info(`Serving chart as static URL (keeping out of model context): ${filename}`);
-          return {
-            id: (Date.now() + index).toString(),
-            url: staticUrl,
-            // Static URL only - never base64
-            title: `${getChartTypeDisplayName(chartType)} Chart`,
-            source: "visualization-charts",
-            description: `Chart: ${filename}`,
-            // Keep description short
-            text: relativePath
-            // Minimal text to avoid bloating context
-          };
-        });
-        const attachments = await Promise.all(attachmentPromises);
-        responseContent.attachments?.push(...attachments);
+          return `  \u2022 ${filename}: \`${relativePath}\``;
+        }).join("\n");
+        responseText = responseText.replace(/🌐 \*\*URL:\*\* http:\/\/[^\n]+\n/, "");
         responseText += `
 
-\u{1F4C1} **Local:** \`${path6.relative(process.cwd(), chartsDir)}\``;
+\u{1F4C1} **Generated Charts:**
+${chartList}`;
+        logger8.info(`Generated ${generatedCharts.length} chart files without attachments to avoid payload issues`);
       }
       if (callback) await callback(responseContent);
       return responseContent;
@@ -2104,7 +2117,7 @@ var generateVisualizationAction = {
       {
         name: "{{user2}}",
         content: {
-          text: "\u{1F4CA} **Visualization Generated Successfully**\n\n\u{1F3A8} **Chart Type:** Overview Statistics\n\u{1F4C1} **Location:** `data/charts/visualization-1234567890/overview.png`\n\u{1F4C8} **Data Points:** 45\n\u{1F9EA} **Files Analyzed:** 2\n\n**\u{1F4A1} Chart Features:**\n\u2022 High-resolution PNG format (300 DPI)\n\u2022 Publication-ready styling\n\u2022 Color-coded data separation",
+          text: "\u{1F4CA} **Overview Statistics Generated**\n\n\u{1F4C8} **Data:** 45 points from 2 files\n\n\u2705 Chart ready for viewing!\n\n\u{1F4C1} **Generated Charts:**\n  \u2022 overview_chart.png: `data/charts/visualization-1234567890/overview_chart.png`",
           actions: ["GENERATE_VISUALIZATION"]
         }
       }
@@ -2119,7 +2132,7 @@ var generateVisualizationAction = {
       {
         name: "{{user2}}",
         content: {
-          text: "\u{1F4CA} **Energy Visualization Generated**\n\n\u{1F3A8} **Chart Type:** SCF Energy Trends\n\u{1F4C8} **Data Points:** 12 energies across 2 files\n\u{1F4C1} **Location:** `data/charts/visualization-1234567890/energy.png`\n\n**\u{1F50D} Analysis Shows:**\n\u2022 Energy convergence patterns\n\u2022 File-by-file comparison\n\u2022 Statistical annotations",
+          text: "\u{1F4CA} **SCF Energy Trends Generated**\n\n\u{1F4C8} **Data:** 12 points from 2 files\n\n\u2705 Chart ready for viewing!\n\n\u{1F4C1} **Generated Charts:**\n  \u2022 energy_chart.png: `data/charts/visualization-1234567890/energy_chart.png`",
           actions: ["GENERATE_VISUALIZATION"]
         }
       }
@@ -2134,7 +2147,7 @@ var generateVisualizationAction = {
       {
         name: "{{user2}}",
         content: {
-          text: "\u{1F4CA} **Molecular Visualization Created**\n\n\u{1F3A8} **Chart Type:** Molecular Properties\n\u{1F9EA} **Files Analyzed:** 2\n\u{1F4C8} **Properties:** Atoms, formulas, charges\n\u{1F4C1} **Location:** `data/charts/visualization-1234567890/molecular.png`\n\n**\u{1F4A1} Perfect for:** Research presentations and data analysis",
+          text: "\u{1F4CA} **Molecular Properties Generated**\n\n\u{1F4C8} **Data:** Properties from 2 files\n\n\u2705 Chart ready for viewing!\n\n\u{1F4C1} **Generated Charts:**\n  \u2022 molecular_chart.png: `data/charts/visualization-1234567890/molecular_chart.png`",
           actions: ["GENERATE_VISUALIZATION"]
         }
       }
@@ -2293,12 +2306,12 @@ var generateReportAction = {
           ].filter(Boolean);
           const serverUrl = process.env.SERVER_URL || "http://localhost:3000";
           const dashboardFilename = path7.basename(reportResult.dashboard_path);
-          responseText = `\u{1F4CA} **Comprehensive Analysis Report Generated**
+          responseText = `\u{1F4CA} Comprehensive Analysis Report Generated
 
-\u{1F3AF} **Dashboard:** http://localhost:3000/reports/comprehensive-${timestamp}/${dashboardFilename}
-\u{1F4C8} **Analysis Files:** ${reportResult.total_files} detailed reports
-\u{1F9EA} **Data Sources:** ${stats.totalFiles} Gaussian files
-\u23F0 **Generated:** ${reportResult.timestamp}
+Dashboard: http://localhost:3000/reports/comprehensive-${timestamp}/${dashboardFilename}
+Analysis Files: ${reportResult.total_files} detailed reports
+Data Sources: ${stats.totalFiles} Gaussian files
+Generated: ${reportResult.timestamp}
 
 ## \u{1F4CB} Report Contents
 \u2705 **Main Dashboard** - Overview with key statistics
@@ -2309,9 +2322,9 @@ var generateReportAction = {
 ## \u{1F50D} Key Findings
 ${generateKeyFindings(stats, energyData, molecularData)}
 
-\u{1F4C1} **Local Path:** \`${path7.relative(process.cwd(), reportsDir)}\``;
+Local Path: \`${path7.relative(process.cwd(), reportsDir)}\``;
         } else {
-          responseText = `\u274C **Report Generation Failed**
+          responseText = `Report Generation Failed
 
 **Error:** ${reportResult.error || "Unknown error"}
 
@@ -2324,27 +2337,19 @@ ${generateKeyFindings(stats, energyData, molecularData)}
       const responseContent = {
         text: responseText,
         actions: ["GENERATE_COMPREHENSIVE_REPORT"],
-        source: message.content.source,
-        attachments: []
+        source: message.content.source
       };
       if (reportFiles.length > 0) {
-        const attachmentPromises = reportFiles.map(async (reportPath, index) => {
+        const fileList = reportFiles.map((reportPath) => {
           const filename = path7.basename(reportPath);
           const relativePath = path7.relative(process.cwd(), reportPath);
-          const serverUrl = process.env.SERVER_URL || "http://localhost:3000";
-          const staticUrl = `${serverUrl}/reports/comprehensive-${timestamp}/${filename}`;
-          logger9.info(`Serving report as static URL: ${filename}`);
-          return {
-            id: (Date.now() + index).toString(),
-            url: staticUrl,
-            title: getReportTitle(filename),
-            source: "comprehensive-report",
-            description: `Report: ${filename}`,
-            text: relativePath
-          };
-        });
-        const attachments = await Promise.all(attachmentPromises);
-        responseContent.attachments?.push(...attachments);
+          return `  \u2022 ${getReportTitle(filename)}: \`${relativePath}\``;
+        }).join("\n");
+        responseText += `
+
+\u{1F4C1} **Generated Reports:**
+${fileList}`;
+        logger9.info(`Generated ${reportFiles.length} report files without attachments to avoid payload issues`);
       }
       if (callback) await callback(responseContent);
       return responseContent;
@@ -2370,7 +2375,7 @@ ${generateKeyFindings(stats, energyData, molecularData)}
       {
         name: "{{user2}}",
         content: {
-          text: "\u{1F4CA} **Comprehensive Analysis Report Generated**\n\n\u{1F3AF} **Dashboard:** Available with overview statistics\n\u{1F4C8} **Analysis Files:** 4 detailed reports created\n\u{1F9EA} **Data Sources:** 2 Gaussian files analyzed\n\n## \u{1F4CB} Report Contents\n\u2705 **Main Dashboard** - Overview with key statistics\n\u2705 **Energy Analysis** - Detailed SCF energy trends\n\u2705 **Molecular Analysis** - Molecular properties\n\u2705 **File Comparison** - Cross-file analysis\n\n## \u{1F50D} Key Findings\n\u2022 2 molecules analyzed with 15 SCF energies\n\u2022 Energy range: -154.123 to -98.456 Hartree\n\u2022 Molecular formulas: C7H6O2, C7H8\n\u2022 Atom counts: 15-15 atoms per molecule\n\n\u{1F4C1} **Local Path:** `data/reports/comprehensive-1234567890`",
+          text: "\u{1F4CA} **Comprehensive Analysis Report Generated**\n\n\u{1F3AF} **Dashboard:** Generated with comprehensive analysis\n\u{1F4C8} **Analysis Files:** 4 detailed reports\n\u{1F9EA} **Data Sources:** 2 Gaussian files\n\n## \u{1F4CB} Report Contents\n\u2705 **Main Dashboard** - Overview with key statistics\n\u2705 **Energy Analysis** - Detailed SCF energy trends\n\u2705 **Molecular Analysis** - Molecular properties\n\u2705 **File Comparison** - Cross-file analysis\n\n## \u{1F50D} Key Findings\n\u2022 2 molecules analyzed with 15 SCF energies\n\u2022 Energy range: -154.123 to -98.456 Hartree\n\u2022 Molecular formulas: C7H6O2, C7H8\n\u2022 Atom counts: 15-15 atoms per molecule\n\n\u{1F4C1} **Generated Reports:**\n  \u2022 Main Dashboard: `data/reports/comprehensive-1234567890/comprehensive_dashboard.png`\n  \u2022 Energy Analysis: `data/reports/comprehensive-1234567890/detailed_energy_analysis.png`\n  \u2022 Molecular Analysis: `data/reports/comprehensive-1234567890/detailed_molecular_analysis.png`\n  \u2022 File Comparison: `data/reports/comprehensive-1234567890/file_comparison_analysis.png`",
           actions: ["GENERATE_COMPREHENSIVE_REPORT"]
         }
       }
@@ -2385,7 +2390,7 @@ ${generateKeyFindings(stats, energyData, molecularData)}
       {
         name: "{{user2}}",
         content: {
-          text: "\u{1F4CA} **Comprehensive Analysis Report Generated**\n\n\u{1F3AF} **Dashboard:** Complete overview with visualizations\n\u{1F4C8} **Analysis Files:** 3 detailed reports\n\u{1F9EA} **Data Sources:** 1 Gaussian file\n\n## \u{1F4CB} Report Contents\n\u2705 **Main Dashboard** - Statistical overview\n\u2705 **Energy Analysis** - SCF convergence analysis\n\u2705 **Molecular Analysis** - Structural properties\n\n## \u{1F50D} Key Findings\n\u2022 Single molecule: C7H6O2 (lactone)\n\u2022 8 SCF energy calculations\n\u2022 15 atoms total\n\u2022 Energy convergence achieved\n\nPerfect for research documentation and analysis review!",
+          text: "\u{1F4CA} Comprehensive Analysis Report Generated\n\nDashboard: Complete overview with visualizations\nAnalysis Files: 3 detailed reports\nData Sources: 1 Gaussian file\n\nReport Contents:\n\u2022 Main Dashboard - Statistical overview\n\u2022 Energy Analysis - SCF convergence analysis\n\u2022 Molecular Analysis - Structural properties\n\nKey Findings:\n\u2022 Single molecule: C7H6O2 (lactone)\n\u2022 8 SCF energy calculations\n\u2022 15 atoms total\n\u2022 Energy convergence achieved\n\nPerfect for research documentation and analysis review.",
           actions: ["GENERATE_COMPREHENSIVE_REPORT"]
         }
       }
@@ -2400,7 +2405,7 @@ ${generateKeyFindings(stats, energyData, molecularData)}
       {
         name: "{{user2}}",
         content: {
-          text: "\u{1F4CA} **Comprehensive Analysis Report Generated**\n\n\u{1F3AF} **Dashboard:** Multi-panel overview with charts\n\u{1F4C8} **Analysis Files:** 4 detailed visualizations\n\u{1F9EA} **Data Sources:** 2 Gaussian files analyzed\n\n## \u{1F4CB} Report Contents\n\u2705 **Main Dashboard** - 6-panel overview\n\u2705 **Energy Analysis** - Distribution and trends\n\u2705 **Molecular Analysis** - Properties and statistics\n\u2705 **File Comparison** - Comparative analysis\n\n## \u{1F50D} Key Findings\n\u2022 Multiple molecular systems compared\n\u2022 Energy statistics and distributions\n\u2022 Molecular diversity analysis\n\u2022 Data completeness assessment\n\n\u{1F4CA} **Professional quality** - Publication ready charts!",
+          text: "\u{1F4CA} Comprehensive Analysis Report Generated\n\nDashboard: Multi-panel overview with charts\nAnalysis Files: 4 detailed visualizations\nData Sources: 2 Gaussian files analyzed\n\nReport Contents:\n\u2022 Main Dashboard - 6-panel overview\n\u2022 Energy Analysis - Distribution and trends\n\u2022 Molecular Analysis - Properties and statistics\n\u2022 File Comparison - Comparative analysis\n\nKey Findings:\n\u2022 Multiple molecular systems compared\n\u2022 Energy statistics and distributions\n\u2022 Molecular diversity analysis\n\u2022 Data completeness assessment\n\nProfessional quality charts suitable for publications.",
           actions: ["GENERATE_COMPREHENSIVE_REPORT"]
         }
       }

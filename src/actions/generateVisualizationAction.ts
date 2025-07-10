@@ -154,44 +154,24 @@ export const generateVisualizationAction: Action = {
         responseText = `❌ **Chart Error:** ${error.message}`;
       }
 
-      // IMPORTANT: Keep image data separate from model context to avoid token limit issues
+      // IMPORTANT: Keep response lightweight to avoid token limit issues
       const responseContent: Content = {
         text: responseText,
         actions: ['GENERATE_VISUALIZATION'],
         source: message.content.source,
-        attachments: [], // Add attachments array - this is for CLIENT DISPLAY ONLY
       };
 
-      // Add chart attachments with proper async handling
-      // NOTE: These attachments are for UI display and should NOT be sent to the model
+      // Add local file paths for user reference (no attachments to avoid payload issues)
       if (generatedCharts.length > 0) {
-        // Process all charts with static URLs ONLY (no base64 to avoid context pollution)
-        const attachmentPromises = generatedCharts.map(async (chartPath: string, index: number) => {
+        const chartList = generatedCharts.map((chartPath: string) => {
           const filename = path.basename(chartPath);
           const relativePath = path.relative(process.cwd(), chartPath);
-          
-          // Force static URL serving to keep out of model context
-          const serverUrl = process.env.SERVER_URL || 'http://localhost:3000';
-          const staticUrl = `${serverUrl}/charts/visualization-${timestamp}/${filename}`;
-          
-          logger.info(`Serving chart as static URL (keeping out of model context): ${filename}`);
-          
-          return {
-            id: (Date.now() + index).toString(),
-            url: staticUrl, // Static URL only - never base64
-            title: `${getChartTypeDisplayName(chartType)} Chart`,
-            source: "visualization-charts", 
-            description: `Chart: ${filename}`, // Keep description short
-            text: relativePath, // Minimal text to avoid bloating context
-          };
-        });
+          return `  • ${filename}: \`${relativePath}\``;
+        }).join('\n');
         
-        // Wait for all attachments to be processed
-        const attachments = await Promise.all(attachmentPromises);
-        responseContent.attachments?.push(...attachments);
-        
-        // Keep instructions minimal to avoid context bloat
-        responseText += `\n\n📁 **Local:** \`${path.relative(process.cwd(), chartsDir)}\``;
+        responseText = responseText.replace(/🌐 \*\*URL:\*\* http:\/\/[^\n]+\n/, '');
+        responseText += `\n\n📁 **Generated Charts:**\n${chartList}`;
+        logger.info(`Generated ${generatedCharts.length} chart files without attachments to avoid payload issues`);
       }
 
       if (callback) await callback(responseContent);
@@ -223,7 +203,7 @@ export const generateVisualizationAction: Action = {
       {
         name: '{{user2}}',
         content: {
-          text: '📊 **Visualization Generated Successfully**\n\n🎨 **Chart Type:** Overview Statistics\n📁 **Location:** `data/charts/visualization-1234567890/overview.png`\n📈 **Data Points:** 45\n🧪 **Files Analyzed:** 2\n\n**💡 Chart Features:**\n• High-resolution PNG format (300 DPI)\n• Publication-ready styling\n• Color-coded data separation',
+          text: '📊 **Overview Statistics Generated**\n\n📈 **Data:** 45 points from 2 files\n\n✅ Chart ready for viewing!\n\n📁 **Generated Charts:**\n  • overview_chart.png: `data/charts/visualization-1234567890/overview_chart.png`',
           actions: ['GENERATE_VISUALIZATION'],
         },
       },
@@ -238,7 +218,7 @@ export const generateVisualizationAction: Action = {
       {
         name: '{{user2}}',
         content: {
-          text: '📊 **Energy Visualization Generated**\n\n🎨 **Chart Type:** SCF Energy Trends\n📈 **Data Points:** 12 energies across 2 files\n📁 **Location:** `data/charts/visualization-1234567890/energy.png`\n\n**🔍 Analysis Shows:**\n• Energy convergence patterns\n• File-by-file comparison\n• Statistical annotations',
+          text: '📊 **SCF Energy Trends Generated**\n\n📈 **Data:** 12 points from 2 files\n\n✅ Chart ready for viewing!\n\n📁 **Generated Charts:**\n  • energy_chart.png: `data/charts/visualization-1234567890/energy_chart.png`',
           actions: ['GENERATE_VISUALIZATION'],
         },
       },
@@ -253,7 +233,7 @@ export const generateVisualizationAction: Action = {
       {
         name: '{{user2}}',
         content: {
-          text: '📊 **Molecular Visualization Created**\n\n🎨 **Chart Type:** Molecular Properties\n🧪 **Files Analyzed:** 2\n📈 **Properties:** Atoms, formulas, charges\n📁 **Location:** `data/charts/visualization-1234567890/molecular.png`\n\n**💡 Perfect for:** Research presentations and data analysis',
+          text: '📊 **Molecular Properties Generated**\n\n📈 **Data:** Properties from 2 files\n\n✅ Chart ready for viewing!\n\n📁 **Generated Charts:**\n  • molecular_chart.png: `data/charts/visualization-1234567890/molecular_chart.png`',
           actions: ['GENERATE_VISUALIZATION'],
         },
       },
